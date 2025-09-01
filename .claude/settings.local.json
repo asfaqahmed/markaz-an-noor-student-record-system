@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install)",
+      "Bash(npm run dev:*)",
+      "Bash(npm install:*)",
+      "Bash(npx supabase:*)",
+      "Bash(./supabase.exe --version)",
+      "Bash(./supabase.exe init)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

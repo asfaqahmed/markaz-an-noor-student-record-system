@@ -1,115 +1,154 @@
-import React, { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { BookOpen, AlertCircle } from 'lucide-react';
+'use client';
 
-const Login: React.FC = () => {
+import { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { Eye, EyeOff, User, Mail, Lock } from 'lucide-react';
+
+export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const { signIn } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
+    setLoading(true);
 
-    try {
-      await signIn(email, password);
-    } catch (err: any) {
-      setError(err.message || 'An error occurred during login');
-    } finally {
-      setLoading(false);
+    const { error } = await signIn(email, password);
+    
+    if (error) {
+      setError(error);
     }
+    
+    setLoading(false);
+  };
+
+  const fillDemoCredentials = (role: 'admin' | 'staff' | 'student') => {
+    const credentials = {
+      admin: { email: 'ahmedimfas@gmail.com', password: 'password123' },
+      staff: { email: 'teacher1@markaz.edu', password: 'password123' },
+      student: { email: 'abdullah@markaz.edu', password: 'password123' }
+    };
+    
+    setEmail(credentials[role].email);
+    setPassword(credentials[role].password);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div className="text-center">
-          <div className="mx-auto h-16 w-16 bg-emerald-600 rounded-full flex items-center justify-center">
-            <BookOpen className="h-8 w-8 text-white" />
+    <div className="min-h-screen bg-gradient-to-br from-islamic-emerald via-primary-600 to-islamic-teal flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="bg-white/10 backdrop-blur-sm rounded-full w-20 h-20 mx-auto mb-4 flex items-center justify-center">
+            <User className="h-10 w-10 text-white" />
           </div>
-          <h2 className="mt-6 text-3xl font-bold text-gray-900">
-            Markaz An-noor
-          </h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Student Management System
-          </p>
+          <h1 className="text-3xl font-bold text-white mb-2">Markaz An-noor</h1>
+          <p className="text-white/80">Student Reporting System</p>
         </div>
 
-        <form className="mt-8 space-y-6 bg-white p-8 rounded-xl shadow-md" onSubmit={handleSubmit}>
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-md p-4 flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-red-500" />
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          )}
+        {/* Login Form */}
+        <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-8 shadow-2xl">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                {error}
+              </div>
+            )}
 
-          <div className="space-y-4">
+            {/* Email Field */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email address
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                Email Address
               </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
-                placeholder="Enter your email"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
-                placeholder="Enter your password"
-              />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {loading ? 'Signing in...' : 'Sign in'}
-          </button>
-
-          <div className="text-xs text-gray-600 space-y-2">
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-              {/* <p className="font-semibold text-blue-800 mb-2">🔧 Setup Required:</p>
-              <p className="text-blue-700 text-xs mb-2">
-                To use this demo, you need to create users in your Supabase project:
-              </p> */}
-              <div className="text-blue-700 text-xs space-y-1">
-                {/* <p>1. Go to your Supabase Dashboard → Authentication → Users</p>
-                <p>2. Click "Add user" and create:</p> */}
-                <p className="ml-2">admin@markaz.edu (Admin role)</p>
-                <p className="ml-2">teacher1@markaz.edu (Staff role)</p>
-                <p className="ml-2">abdullah@markaz.edu (Student role)</p>
-                <p>Use password: <code className="bg-blue-100 px-1 rounded">password123</code></p>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-islamic-emerald focus:border-islamic-emerald transition-colors"
+                  placeholder="Enter your email"
+                  required
+                />
               </div>
             </div>
-          </div>
-        </form>
+
+            {/* Password Field */}
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-islamic-emerald focus:border-islamic-emerald transition-colors"
+                  placeholder="Enter your password"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Demo Credentials */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <p className="text-sm text-gray-600 mb-2">Demo Accounts:</p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => fillDemoCredentials('admin')}
+                  className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs hover:bg-red-200 transition-colors"
+                >
+                  Admin
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fillDemoCredentials('staff')}
+                  className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs hover:bg-blue-200 transition-colors"
+                >
+                  Staff
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fillDemoCredentials('student')}
+                  className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs hover:bg-green-200 transition-colors"
+                >
+                  Student
+                </button>
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-islamic-emerald text-white py-3 px-4 rounded-lg font-medium hover:bg-islamic-emerald/90 focus:ring-2 focus:ring-islamic-emerald focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? 'Signing in...' : 'Sign In'}
+            </button>
+          </form>
+        </div>
+
+        {/* Footer */}
+        <div className="text-center mt-8">
+          <p className="text-white/70 text-sm">
+            Full Stack Reporting System for Islamic Education
+          </p>
+        </div>
       </div>
     </div>
   );
-};
-
-export default Login;
+}

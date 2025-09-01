@@ -1,156 +1,199 @@
-import React, { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+'use client';
+
+import { useAuth } from '@/contexts/AuthContext';
 import { 
+  User, 
   LogOut, 
   Menu, 
   X, 
-  BookOpen, 
+  Home, 
   Users, 
-  ClipboardList, 
+  BookOpen, 
   AlertTriangle,
+  FileText,
   Calendar,
-  BarChart3
+  Bell
 } from 'lucide-react';
+import { useState } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { user, signOut } = useAuth();
+export default function Layout({ children }: LayoutProps) {
+  const { user, signOut, isAdmin, isStaff } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const pathname = usePathname();
 
-  const navigation = React.useMemo(() => {
-    const baseItems = [
-      { name: 'Dashboard', icon: BarChart3, href: '/' },
-    ];
+  const navigation = [
+    { name: 'Dashboard', href: '/', icon: Home, roles: ['admin', 'staff', 'student'] },
+    { name: 'Students', href: '/students', icon: Users, roles: ['admin', 'staff'] },
+    { name: 'Activities', href: '/activities', icon: BookOpen, roles: ['admin', 'staff'] },
+    { name: 'Participation', href: '/participation', icon: Calendar, roles: ['admin', 'staff'] },
+    { name: 'Alerts', href: '/alerts', icon: AlertTriangle, roles: ['admin', 'staff'] },
+    { name: 'Reports', href: '/reports', icon: FileText, roles: ['admin'] },
+    { name: 'My Progress', href: '/progress', icon: Bell, roles: ['student'] },
+  ];
 
-    if (user?.role === 'admin') {
-      return [
-        ...baseItems,
-        { name: 'Students', icon: Users, href: '/students' },
-        { name: 'Staff', icon: Users, href: '/staff' },
-        { name: 'Reports', icon: ClipboardList, href: '/reports' },
-        { name: 'Alerts', icon: AlertTriangle, href: '/alerts' },
-      ];
-    }
-
-    if (user?.role === 'staff') {
-      return [
-        ...baseItems,
-        { name: 'Grading', icon: BookOpen, href: '/grading' },
-        { name: 'Attendance', icon: Calendar, href: '/attendance' },
-        { name: 'Alerts', icon: AlertTriangle, href: '/alerts' },
-      ];
-    }
-
-    return baseItems;
-  }, [user?.role]);
+  const filteredNavigation = navigation.filter(item => 
+    item.roles.includes(user?.role || '')
+  );
 
   const handleSignOut = async () => {
-    try {
-      await signOut();
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
+    await signOut();
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Mobile sidebar */}
-      <div className={`fixed inset-0 z-50 lg:hidden ${sidebarOpen ? 'block' : 'hidden'}`}>
+      <div className={`fixed inset-0 z-40 lg:hidden ${sidebarOpen ? 'block' : 'hidden'}`}>
         <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setSidebarOpen(false)} />
-        <div className="fixed inset-y-0 left-0 flex w-64 flex-col bg-white shadow-xl">
-          <div className="flex h-16 items-center justify-between px-4 bg-emerald-700">
-            <h1 className="text-lg font-semibold text-white">Markaz An-noor</h1>
+        <div className="relative flex flex-col w-full h-full max-w-xs bg-white">
+          <div className="absolute top-0 right-0 p-2">
             <button
               onClick={() => setSidebarOpen(false)}
-              className="text-emerald-200 hover:text-white"
+              className="flex items-center justify-center w-10 h-10 ml-1 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
             >
-              <X className="h-6 w-6" />
+              <X className="w-6 h-6 text-gray-600" />
             </button>
           </div>
-          <nav className="flex-1 px-4 py-6 space-y-2">
-            {navigation.map((item) => (
-              <a
-                key={item.name}
-                href={item.href}
-                className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-100 hover:text-gray-900"
-              >
-                <item.icon className="mr-3 h-5 w-5" />
-                {item.name}
-              </a>
-            ))}
-          </nav>
+          <SidebarContent 
+            navigation={filteredNavigation} 
+            pathname={pathname} 
+            user={user} 
+            onSignOut={handleSignOut} 
+          />
         </div>
       </div>
 
-      {/* Desktop sidebar */}
-      <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-64 lg:flex-col">
-        <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white shadow-lg">
-          <div className="flex h-16 shrink-0 items-center px-6 bg-emerald-700">
-            <h1 className="text-lg font-semibold text-white">Markaz An-noor</h1>
-          </div>
-          <nav className="flex flex-1 flex-col px-6">
-            <ul className="flex flex-1 flex-col gap-y-2">
-              {navigation.map((item) => (
-                <li key={item.name}>
-                  <a
-                    href={item.href}
-                    className="flex items-center gap-x-3 rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900"
-                  >
-                    <item.icon className="h-5 w-5" />
-                    {item.name}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </nav>
+      {/* Static sidebar for desktop */}
+      <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
+        <div className="flex flex-col flex-grow bg-white border-r border-gray-200 overflow-y-auto">
+          <SidebarContent 
+            navigation={filteredNavigation} 
+            pathname={pathname} 
+            user={user} 
+            onSignOut={handleSignOut} 
+          />
         </div>
       </div>
 
       {/* Main content */}
-      <div className="lg:pl-64">
-        {/* Top bar */}
-        <div className="sticky top-0 z-40 flex h-16 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
+      <div className="lg:pl-64 flex flex-col flex-1">
+        {/* Top navigation */}
+        <div className="sticky top-0 z-10 flex-shrink-0 flex h-16 bg-white border-b border-gray-200">
           <button
-            type="button"
-            className="-m-2.5 p-2.5 text-gray-700 lg:hidden"
             onClick={() => setSidebarOpen(true)}
+            className="px-4 border-r border-gray-200 text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-islamic-emerald lg:hidden"
           >
-            <Menu className="h-6 w-6" />
+            <Menu className="w-6 h-6" />
           </button>
-
-          <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
-            <div className="flex flex-1 items-center">
-              <h2 className="text-lg font-semibold text-gray-900">
-                Welcome, {user?.name}
-              </h2>
+          
+          <div className="flex-1 px-4 flex justify-between items-center">
+            <div className="flex-1">
+              <h1 className="text-2xl font-semibold text-gray-900">
+                Markaz An-noor
+              </h1>
             </div>
-            <div className="flex items-center gap-x-4 lg:gap-x-6">
-              <div className="text-sm text-gray-500 capitalize">
-                {user?.role}
+            
+            <div className="ml-4 flex items-center md:ml-6">
+              <span className="text-sm text-gray-700">
+                Welcome, {user?.name}
+              </span>
+              <div className="ml-3 px-3 py-1 bg-islamic-emerald/10 text-islamic-emerald rounded-full text-xs font-medium">
+                {user?.role?.charAt(0).toUpperCase() + user?.role?.slice(1)}
               </div>
-              <button
-                onClick={handleSignOut}
-                className="flex items-center gap-x-2 rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500"
-              >
-                <LogOut className="h-4 w-4" />
-                Sign out
-              </button>
             </div>
           </div>
         </div>
 
         {/* Page content */}
-        <main className="py-8">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            {children}
-          </div>
+        <main className="flex-1">
+          {children}
         </main>
       </div>
     </div>
   );
-};
+}
 
-export default Layout;
+function SidebarContent({ 
+  navigation, 
+  pathname, 
+  user, 
+  onSignOut 
+}: { 
+  navigation: any[], 
+  pathname: string, 
+  user: any, 
+  onSignOut: () => void 
+}) {
+  return (
+    <>
+      {/* Logo */}
+      <div className="flex items-center flex-shrink-0 px-4 py-6">
+        <div className="flex items-center">
+          <div className="bg-islamic-emerald rounded-lg p-2 mr-3">
+            <BookOpen className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Markaz An-noor</h2>
+            <p className="text-sm text-gray-500">Student System</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 px-2 pb-4 space-y-1">
+        {navigation.map((item) => {
+          const isActive = pathname === item.href;
+          return (
+            <Link
+              key={item.name}
+              href={item.href}
+              className={`${
+                isActive
+                  ? 'bg-islamic-emerald text-white'
+                  : 'text-gray-700 hover:bg-gray-100'
+              } group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors`}
+            >
+              <item.icon
+                className={`${
+                  isActive ? 'text-white' : 'text-gray-500 group-hover:text-gray-700'
+                } mr-3 flex-shrink-0 h-5 w-5`}
+              />
+              {item.name}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* User menu */}
+      <div className="flex-shrink-0 border-t border-gray-200 p-4">
+        <div className="flex items-center">
+          <div className="flex-shrink-0">
+            <div className="bg-gray-200 rounded-full p-2">
+              <User className="h-5 w-5 text-gray-600" />
+            </div>
+          </div>
+          <div className="ml-3 flex-1 min-w-0">
+            <p className="text-sm font-medium text-gray-900 truncate">
+              {user?.name}
+            </p>
+            <p className="text-xs text-gray-500 truncate">
+              {user?.email}
+            </p>
+          </div>
+          <button
+            onClick={onSignOut}
+            className="ml-3 p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+            title="Sign out"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
