@@ -67,13 +67,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchUserProfile = async (authUser: User) => {
     try {
-      const { data, error } = await db.getUserByEmail(authUser.email!);
+      if (!authUser?.email) {
+        console.error('No email found for auth user');
+        setUser(null);
+        setLoading(false);
+        return;
+      }
       
-      if (error) {
-        console.error('Error fetching user profile:', error);
+      const result = await db.getUserByEmail(authUser.email);
+      
+      if (result.error) {
+        console.error('Error fetching user profile:', result.error);
         setUser(null);
       } else {
-        setUser(data);
+        setUser(result.data);
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);

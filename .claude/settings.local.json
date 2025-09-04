@@ -6,7 +6,11 @@
       "Bash(npm install:*)",
       "Bash(npx supabase:*)",
       "Bash(./supabase.exe --version)",
-      "Bash(./supabase.exe init)"
+      "Bash(./supabase.exe init)",
+      "Read(/D:\\GitHub\\markaz-an-noor-student-record-system\\supabase\\migrations/**)",
+      "Read(/D:\\GitHub\\markaz-an-noor-student-record-system/**)",
+      "Bash(node:*)",
+      "Read(/D:\\GitHub\\markaz-an-noor-student-record-system\\src\\lib/**)"
     ],
     "deny": [],
     "ask": []

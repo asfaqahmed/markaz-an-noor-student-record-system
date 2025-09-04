@@ -322,7 +322,7 @@ export default function StaffDashboard() {
                         </div>
                         <div className="ml-3">
                           <div className="text-sm font-medium text-gray-900">
-                            {student.user.name}
+                            {student.user?.name || 'Unknown Student'}
                           </div>
                           <div className="text-sm text-gray-500">
                             {student.class}
@@ -390,7 +390,7 @@ export default function StaffDashboard() {
                 <option value="">Select a student</option>
                 {students.map((student) => (
                   <option key={student.id} value={student.id}>
-                    {student.user.name} - {student.class}
+                    {student.user?.name || 'Unknown Student'} - {student.class}
                   </option>
                 ))}
               </select>
@@ -443,7 +443,7 @@ export default function StaffDashboard() {
                 <option value="">Select a student</option>
                 {students.map((student) => (
                   <option key={student.id} value={student.id}>
-                    {student.user.name} - {student.class}
+                    {student.user?.name || 'Unknown Student'} - {student.class}
                   </option>
                 ))}
               </select>

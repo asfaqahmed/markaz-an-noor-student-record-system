@@ -6,16 +6,13 @@ import Layout from '@/components/Layout';
 import AdminDashboard from '@/components/dashboards/AdminDashboard';
 import StaffDashboard from '@/components/dashboards/StaffDashboard';
 import StudentDashboard from '@/components/dashboards/StudentDashboard';
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 export default function Home() {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="loading-spinner"></div>
-      </div>
-    );
+    return <LoadingSpinner fullScreen text="Loading your dashboard..." />;
   }
 
   if (!user) {

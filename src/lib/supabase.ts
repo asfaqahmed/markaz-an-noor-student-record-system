@@ -26,19 +26,54 @@ export const db = {
   },
 
   async getUserByEmail(email: string) {
-    return supabase
+    if (!email) {
+      return { data: null, error: { message: 'Email is required' } };
+    }
+    
+    const { data, error } = await supabase
       .from('users')
       .select('*')
       .eq('email', email)
       .single();
+
+    if (error) {
+      console.error('Error fetching user by email:', error);
+      return { data: null, error };
+    }
+
+    return { data, error: null };
   },
 
-  async createUser(user: { name: string; email: string; role: string }) {
+  async getUserById(id: string) {
+    return supabase
+      .from('users')
+      .select('*')
+      .eq('id', id)
+      .single();
+  },
+
+  async createUser(user: { id?: string; name: string; email: string; role: string }) {
     return supabase
       .from('users')
       .insert(user)
       .select()
       .single();
+  },
+
+  async updateUser(id: string, updates: { name?: string; email?: string; role?: string }) {
+    return supabase
+      .from('users')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+  },
+
+  async deleteUser(id: string) {
+    return supabase
+      .from('users')
+      .delete()
+      .eq('id', id);
   },
 
   // Students
@@ -52,6 +87,17 @@ export const db = {
       .order('created_at', { ascending: false });
   },
 
+  async getStudentById(id: string) {
+    return supabase
+      .from('students')
+      .select(`
+        *,
+        user:users(*)
+      `)
+      .eq('id', id)
+      .single();
+  },
+
   async getStudentByUserId(userId: string) {
     return supabase
       .from('students')
@@ -61,6 +107,39 @@ export const db = {
       `)
       .eq('user_id', userId)
       .single();
+  },
+
+  async createStudent(student: { user_id: string; class: string; joined_at?: string }) {
+    return supabase
+      .from('students')
+      .insert({
+        ...student,
+        joined_at: student.joined_at || new Date().toISOString().split('T')[0]
+      })
+      .select(`
+        *,
+        user:users(*)
+      `)
+      .single();
+  },
+
+  async updateStudent(id: string, updates: { class?: string; joined_at?: string }) {
+    return supabase
+      .from('students')
+      .update(updates)
+      .eq('id', id)
+      .select(`
+        *,
+        user:users(*)
+      `)
+      .single();
+  },
+
+  async deleteStudent(id: string) {
+    return supabase
+      .from('students')
+      .delete()
+      .eq('id', id);
   },
 
   // Teachers
@@ -74,6 +153,17 @@ export const db = {
       .order('created_at', { ascending: false });
   },
 
+  async getTeacherById(id: string) {
+    return supabase
+      .from('teachers')
+      .select(`
+        *,
+        user:users(*)
+      `)
+      .eq('id', id)
+      .single();
+  },
+
   async getTeacherByUserId(userId: string) {
     return supabase
       .from('teachers')
@@ -85,12 +175,74 @@ export const db = {
       .single();
   },
 
+  async createTeacher(teacher: { user_id: string; assigned_class: string }) {
+    return supabase
+      .from('teachers')
+      .insert(teacher)
+      .select(`
+        *,
+        user:users(*)
+      `)
+      .single();
+  },
+
+  async updateTeacher(id: string, updates: { assigned_class?: string }) {
+    return supabase
+      .from('teachers')
+      .update(updates)
+      .eq('id', id)
+      .select(`
+        *,
+        user:users(*)
+      `)
+      .single();
+  },
+
+  async deleteTeacher(id: string) {
+    return supabase
+      .from('teachers')
+      .delete()
+      .eq('id', id);
+  },
+
   // Activities
   async getActivities() {
     return supabase
       .from('activities')
       .select('*')
       .order('code');
+  },
+
+  async getActivityById(id: string) {
+    return supabase
+      .from('activities')
+      .select('*')
+      .eq('id', id)
+      .single();
+  },
+
+  async createActivity(activity: { code: string; description: string; start_time: string; end_time: string }) {
+    return supabase
+      .from('activities')
+      .insert(activity)
+      .select()
+      .single();
+  },
+
+  async updateActivity(id: string, updates: { code?: string; description?: string; start_time?: string; end_time?: string }) {
+    return supabase
+      .from('activities')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+  },
+
+  async deleteActivity(id: string) {
+    return supabase
+      .from('activities')
+      .delete()
+      .eq('id', id);
   },
 
   // Participation Records

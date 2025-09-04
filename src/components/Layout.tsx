@@ -12,7 +12,8 @@ import {
   AlertTriangle,
   FileText,
   Calendar,
-  Bell
+  Bell,
+  Settings
 } from 'lucide-react';
 import { useState } from 'react';
 import Link from 'next/link';
@@ -34,6 +35,7 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Participation', href: '/participation', icon: Calendar, roles: ['admin', 'staff'] },
     { name: 'Alerts', href: '/alerts', icon: AlertTriangle, roles: ['admin', 'staff'] },
     { name: 'Reports', href: '/reports', icon: FileText, roles: ['admin'] },
+    { name: 'Admin Management', href: '/admin', icon: Settings, roles: ['admin'] },
     { name: 'My Progress', href: '/progress', icon: Bell, roles: ['student'] },
   ];
 

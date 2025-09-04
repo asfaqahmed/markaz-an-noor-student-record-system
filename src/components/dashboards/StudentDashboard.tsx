@@ -177,7 +177,7 @@ export default function StudentDashboard() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">My Progress</h1>
-          <p className="text-gray-600">Personal dashboard for {student.user.name} - {student.class}</p>
+          <p className="text-gray-600">Personal dashboard for {student.user?.name || 'Student'} - {student.class}</p>
         </div>
         <div className="flex items-center space-x-2">
           <select
