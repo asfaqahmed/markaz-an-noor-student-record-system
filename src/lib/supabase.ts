@@ -293,6 +293,10 @@ export const db = {
   },
 
   async updateParticipationRecord(id: string, updates: {
+    student_id?: string;
+    teacher_id?: string;
+    activity_id?: string;
+    date?: string;
     grade?: 'A' | 'B' | 'C' | 'D';
     remarks?: string;
   }) {
@@ -302,6 +306,13 @@ export const db = {
       .eq('id', id)
       .select()
       .single();
+  },
+
+  async deleteParticipationRecord(id: string) {
+    return supabase
+      .from('participation_records')
+      .delete()
+      .eq('id', id);
   },
 
   // Leaves
@@ -376,6 +387,10 @@ export const db = {
   },
 
   async updateAlert(id: string, updates: {
+    student_id?: string;
+    teacher_id?: string;
+    comment?: string;
+    priority?: 'low' | 'medium' | 'high' | 'urgent';
     status?: 'open' | 'reviewing' | 'resolved';
     resolved_by?: string;
     resolved_at?: string;
@@ -386,6 +401,13 @@ export const db = {
       .eq('id', id)
       .select()
       .single();
+  },
+
+  async deleteAlert(id: string) {
+    return supabase
+      .from('alerts')
+      .delete()
+      .eq('id', id);
   },
 
   // Analytics
@@ -441,6 +463,200 @@ export const db = {
       totalStaff: staffResult.data?.length || 0,
       openAlerts: alertsResult.data?.length || 0,
       totalLeaves: leavesResult.data?.length || 0,
+    };
+  },
+
+  // Report Configurations (using localStorage for now)
+  // In a real implementation, these would be stored in database tables
+  async saveReportConfig(config: any) {
+    try {
+      const existingConfigs = localStorage.getItem('reportConfigs');
+      let configs = existingConfigs ? JSON.parse(existingConfigs) : [];
+      
+      if (config.id) {
+        // Update existing config
+        configs = configs.map((c: any) => c.id === config.id ? config : c);
+      } else {
+        // Add new config
+        config.id = Date.now().toString();
+        config.createdAt = new Date().toISOString();
+        configs.push(config);
+      }
+      
+      localStorage.setItem('reportConfigs', JSON.stringify(configs));
+      return { data: config, error: null };
+    } catch (error) {
+      console.error('Error saving report config:', error);
+      return { data: null, error };
+    }
+  },
+
+  async getReportConfigs() {
+    try {
+      const configs = localStorage.getItem('reportConfigs');
+      return { data: configs ? JSON.parse(configs) : [], error: null };
+    } catch (error) {
+      console.error('Error getting report configs:', error);
+      return { data: [], error };
+    }
+  },
+
+  async deleteReportConfig(id: string) {
+    try {
+      const existingConfigs = localStorage.getItem('reportConfigs');
+      if (existingConfigs) {
+        const configs = JSON.parse(existingConfigs);
+        const updatedConfigs = configs.filter((c: any) => c.id !== id);
+        localStorage.setItem('reportConfigs', JSON.stringify(updatedConfigs));
+      }
+      return { data: true, error: null };
+    } catch (error) {
+      console.error('Error deleting report config:', error);
+      return { data: false, error };
+    }
+  },
+
+  // Enhanced analytics functions for reports
+  async getParticipationAnalytics(filters?: {
+    dateFrom?: string;
+    dateTo?: string;
+    class?: string;
+    studentId?: string;
+  }) {
+    let query = supabase
+      .from('participation_records')
+      .select(`
+        *,
+        student:students(*, user:users(*)),
+        teacher:teachers(*, user:users(*)),
+        activity:activities(*)
+      `);
+
+    if (filters?.dateFrom) {
+      query = query.gte('date', filters.dateFrom);
+    }
+    if (filters?.dateTo) {
+      query = query.lte('date', filters.dateTo);
+    }
+    if (filters?.class) {
+      // This would need to be joined properly - for now we'll filter client-side
+    }
+    if (filters?.studentId) {
+      query = query.eq('student_id', filters.studentId);
+    }
+
+    const result = await query.order('date', { ascending: false });
+    
+    if (result.data && filters?.class) {
+      result.data = result.data.filter(record => record.student?.class === filters.class);
+    }
+    
+    return result;
+  },
+
+  async getAlertAnalytics(filters?: {
+    dateFrom?: string;
+    dateTo?: string;
+    status?: string;
+    priority?: string;
+    class?: string;
+  }) {
+    let query = supabase
+      .from('alerts')
+      .select(`
+        *,
+        student:students(*, user:users(*)),
+        teacher:teachers(*, user:users(*))
+      `);
+
+    if (filters?.dateFrom) {
+      query = query.gte('created_at', filters.dateFrom);
+    }
+    if (filters?.dateTo) {
+      query = query.lte('created_at', filters.dateTo);
+    }
+    if (filters?.status) {
+      query = query.eq('status', filters.status);
+    }
+    if (filters?.priority) {
+      query = query.eq('priority', filters.priority);
+    }
+
+    const result = await query.order('created_at', { ascending: false });
+    
+    if (result.data && filters?.class) {
+      result.data = result.data.filter(alert => alert.student?.class === filters.class);
+    }
+    
+    return result;
+  },
+
+  async getTeacherAnalytics(filters?: {
+    dateFrom?: string;
+    dateTo?: string;
+    teacherId?: string;
+  }) {
+    const [teachersResult, recordsResult, alertsResult] = await Promise.all([
+      this.getTeachers(),
+      this.getParticipationRecords({
+        teacherId: filters?.teacherId,
+        dateFrom: filters?.dateFrom,
+        dateTo: filters?.dateTo
+      }),
+      this.getAlerts({
+        teacherId: filters?.teacherId
+      })
+    ]);
+
+    return {
+      teachers: teachersResult.data || [],
+      participationRecords: recordsResult.data || [],
+      alerts: alertsResult.data || []
+    };
+  },
+
+  async getClassAnalytics(filters?: {
+    dateFrom?: string;
+    dateTo?: string;
+    class?: string;
+  }) {
+    const [studentsResult, recordsResult, alertsResult, leavesResult] = await Promise.all([
+      this.getStudents(),
+      this.getParticipationRecords({
+        dateFrom: filters?.dateFrom,
+        dateTo: filters?.dateTo
+      }),
+      this.getAlerts(),
+      this.getLeaves()
+    ]);
+
+    let students = studentsResult.data || [];
+    let participationRecords = recordsResult.data || [];
+    let alerts = alertsResult.data || [];
+    let leaves = leavesResult.data || [];
+
+    // Filter by class if specified
+    if (filters?.class) {
+      students = students.filter(s => s.class === filters.class);
+      const studentIds = students.map(s => s.id);
+      participationRecords = participationRecords.filter(r => studentIds.includes(r.student_id));
+      alerts = alerts.filter(a => studentIds.includes(a.student_id));
+      leaves = leaves.filter(l => studentIds.includes(l.student_id));
+    }
+
+    // Filter leaves by date range
+    if (filters?.dateFrom) {
+      leaves = leaves.filter(l => new Date(l.date) >= new Date(filters.dateFrom!));
+    }
+    if (filters?.dateTo) {
+      leaves = leaves.filter(l => new Date(l.date) <= new Date(filters.dateTo!));
+    }
+
+    return {
+      students,
+      participationRecords,
+      alerts,
+      leaves
     };
   }
 };

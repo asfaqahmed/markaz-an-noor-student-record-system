@@ -12,7 +12,11 @@ import {
   Calendar,
   MessageSquare,
   Users,
-  Download
+  Download,
+  Trash2,
+  Save,
+  X,
+  Edit
 } from 'lucide-react';
 import { db } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -55,9 +59,20 @@ export default function AlertsPage() {
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedPriority, setSelectedPriority] = useState('');
   const [selectedClass, setSelectedClass] = useState('');
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [editingAlert, setEditingAlert] = useState<Alert | null>(null);
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [students, setStudents] = useState<any[]>([]);
+  const [teachers, setTeachers] = useState<any[]>([]);
+  const [formData, setFormData] = useState({
+    student_id: '',
+    teacher_id: '',
+    comment: '',
+    priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent'
+  });
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -70,15 +85,18 @@ export default function AlertsPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [alertsResult, studentsResult] = await Promise.all([
+      const [alertsResult, studentsResult, teachersResult] = await Promise.all([
         db.getAlerts(),
-        db.getStudents()
+        db.getStudents(),
+        db.getTeachers()
       ]);
 
       if (alertsResult.data) setAlerts(alertsResult.data);
       if (studentsResult.data) setStudents(studentsResult.data);
+      if (teachersResult.data) setTeachers(teachersResult.data);
     } catch (error) {
       console.error('Error fetching data:', error);
+      setErrorMessage('Error loading data. Please refresh the page.');
     } finally {
       setLoading(false);
     }
@@ -100,6 +118,99 @@ export default function AlertsPage() {
     }
 
     setFilteredAlerts(filtered);
+  };
+
+  const openModal = (alert?: Alert) => {
+    if (alert) {
+      setEditingAlert(alert);
+      setFormData({
+        student_id: alert.student_id,
+        teacher_id: alert.teacher_id,
+        comment: alert.comment,
+        priority: alert.priority
+      });
+    } else {
+      setEditingAlert(null);
+      // For staff users, try to find their teacher ID
+      let teacherId = '';
+      if (user?.role === 'staff' && teachers.length > 0) {
+        const userTeacher = teachers.find(t => t.user?.email === user.email);
+        teacherId = userTeacher?.id || '';
+      }
+      setFormData({
+        student_id: '',
+        teacher_id: teacherId,
+        comment: '',
+        priority: 'medium'
+      });
+    }
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingAlert(null);
+    setFormData({
+      student_id: '',
+      teacher_id: '',
+      comment: '',
+      priority: 'medium'
+    });
+    setErrorMessage('');
+    setSuccessMessage('');
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.student_id || !formData.teacher_id || !formData.comment.trim()) {
+      setErrorMessage('Please fill in all required fields.');
+      return;
+    }
+
+    try {
+      if (editingAlert) {
+        // For editing, update the alert fields
+        await db.updateAlert(editingAlert.id, {
+          student_id: formData.student_id,
+          teacher_id: formData.teacher_id,
+          comment: formData.comment,
+          priority: formData.priority,
+        });
+        setSuccessMessage('Alert updated successfully!');
+      } else {
+        await db.createAlert(formData);
+        setSuccessMessage('Alert created successfully!');
+      }
+      
+      await fetchData();
+      setTimeout(() => {
+        closeModal();
+        setSuccessMessage('');
+      }, 2000);
+    } catch (error) {
+      console.error('Error saving alert:', error);
+      setErrorMessage('Error saving alert. Please try again.');
+    }
+  };
+
+  const handleDelete = async (id: string, studentName: string) => {
+    if (!isAdmin) {
+      setErrorMessage('Only administrators can delete alerts.');
+      return;
+    }
+
+    if (confirm(`Are you sure you want to delete this alert for ${studentName}? This action cannot be undone.`)) {
+      try {
+        await db.deleteAlert(id);
+        setSuccessMessage('Alert deleted successfully!');
+        await fetchData();
+        setTimeout(() => setSuccessMessage(''), 3000);
+      } catch (error) {
+        console.error('Error deleting alert:', error);
+        setErrorMessage('Error deleting alert. Please try again.');
+      }
+    }
   };
 
   const handleUpdateStatus = async (alertId: string, status: 'open' | 'reviewing' | 'resolved') => {
@@ -137,8 +248,8 @@ export default function AlertsPage() {
     switch (priority) {
       case 'urgent': return 'text-red-600 bg-red-50 border-red-200';
       case 'high': return 'text-orange-600 bg-orange-50 border-orange-200';
-      case 'medium': return 'text-yellow-600 bg-yellow-50 border-yellow-200';
-      case 'low': return 'text-blue-600 bg-blue-50 border-blue-200';
+      case 'medium': return 'text-blue-600 bg-blue-50 border-blue-200';
+      case 'low': return 'text-gray-600 bg-gray-50 border-gray-200';
       default: return 'text-gray-600 bg-gray-50 border-gray-200';
     }
   };
@@ -187,6 +298,18 @@ export default function AlertsPage() {
     <RouteGuard>
       <Layout>
         <div className="p-6 space-y-6">
+      {/* Success/Error Messages */}
+      {successMessage && (
+        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+          {successMessage}
+        </div>
+      )}
+      {errorMessage && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          {errorMessage}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -196,11 +319,11 @@ export default function AlertsPage() {
         <div className="flex space-x-3">
           {(isAdmin || isStaff) && (
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={() => openModal()}
               className="btn-primary flex items-center space-x-2"
             >
               <Plus className="h-4 w-4" />
-              <span>Create Alert</span>
+              <span>Add Alert</span>
             </button>
           )}
           <button
@@ -342,7 +465,7 @@ export default function AlertsPage() {
                   </div>
                   
                   {(isAdmin || isStaff) && (
-                    <div className="flex items-center space-x-2 ml-4">
+                    <div className="flex items-center space-x-2 ml-4 flex-wrap">
                       <button
                         onClick={() => setSelectedAlert(alert)}
                         className="p-2 text-gray-400 hover:text-gray-600 rounded"
@@ -350,6 +473,28 @@ export default function AlertsPage() {
                       >
                         <Eye className="h-4 w-4" />
                       </button>
+                      
+                      {/* Edit button - for assigned teacher or admin */}
+                      {(isAdmin || (isStaff && teachers.find(t => t.id === alert.teacher_id && t.user?.email === user?.email))) && (
+                        <button
+                          onClick={() => openModal(alert)}
+                          className="p-2 text-blue-400 hover:text-blue-600 rounded"
+                          title="Edit alert"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
+                      )}
+                      
+                      {/* Delete button - admin only */}
+                      {isAdmin && (
+                        <button
+                          onClick={() => handleDelete(alert.id, alert.student.user?.name || 'Unknown Student')}
+                          className="p-2 text-red-400 hover:text-red-600 rounded"
+                          title="Delete alert"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                       
                       {alert.status === 'open' && (
                         <button
@@ -416,7 +561,7 @@ export default function AlertsPage() {
             <div>
               <p className="text-sm font-medium text-blue-600">Students with Alerts</p>
               <p className="text-2xl font-bold text-blue-900">
-                {[...new Set(filteredAlerts.map(a => a.student_id))].length}
+                {Array.from(new Set(filteredAlerts.map(a => a.student_id))).length}
               </p>
             </div>
             <Users className="h-8 w-8 text-blue-600" />
@@ -445,6 +590,136 @@ export default function AlertsPage() {
           </div>
         </div>
       </div>
+
+        {/* Alert Modal */}
+        {showModal && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-1/2 shadow-lg rounded-md bg-white">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium text-gray-900">
+                  {editingAlert ? 'Edit Alert' : 'Create New Alert'}
+                </h3>
+                <button
+                  onClick={closeModal}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Student Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Student <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.student_id}
+                    onChange={(e) => setFormData({ ...formData, student_id: e.target.value })}
+                    className="form-select"
+                    required
+                  >
+                    <option value="">Select a student</option>
+                    {students.map((student) => (
+                      <option key={student.id} value={student.id}>
+                        {student.user?.name} ({student.class})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Teacher Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Teacher <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.teacher_id}
+                    onChange={(e) => setFormData({ ...formData, teacher_id: e.target.value })}
+                    className="form-select"
+                    required
+                    disabled={user?.role === 'staff'}
+                  >
+                    <option value="">Select a teacher</option>
+                    {teachers.map((teacher) => (
+                      <option key={teacher.id} value={teacher.id}>
+                        {teacher.user?.name}
+                      </option>
+                    ))}
+                  </select>
+                  {user?.role === 'staff' && (
+                    <p className="text-sm text-gray-500 mt-1">
+                      Your teacher account is pre-selected
+                    </p>
+                  )}
+                </div>
+
+                {/* Priority Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Priority <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.priority}
+                    onChange={(e) => setFormData({ ...formData, priority: e.target.value as 'low' | 'medium' | 'high' | 'urgent' })}
+                    className="form-select"
+                    required
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </div>
+
+                {/* Comment */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Comment <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={formData.comment}
+                    onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
+                    rows={4}
+                    className="form-textarea"
+                    placeholder="Describe the behavioral concern or issue..."
+                    required
+                  />
+                </div>
+
+                {/* Success/Error Messages in Modal */}
+                {successMessage && (
+                  <div className="bg-green-100 border border-green-400 text-green-700 px-3 py-2 rounded text-sm">
+                    {successMessage}
+                  </div>
+                )}
+                {errorMessage && (
+                  <div className="bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded text-sm">
+                    {errorMessage}
+                  </div>
+                )}
+
+                {/* Form Actions */}
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="btn-secondary"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn-primary flex items-center space-x-2"
+                  >
+                    <Save className="h-4 w-4" />
+                    <span>{editingAlert ? 'Update' : 'Create'} Alert</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
         </div>
       </Layout>
     </RouteGuard>

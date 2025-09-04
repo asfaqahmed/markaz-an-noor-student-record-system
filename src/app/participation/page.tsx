@@ -11,7 +11,12 @@ import {
   User,
   Filter,
   Download,
-  BarChart3
+  BarChart3,
+  Trash2,
+  Save,
+  X,
+  Edit,
+  Plus
 } from 'lucide-react';
 import { db } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -51,7 +56,7 @@ interface ParticipationRecord {
 }
 
 export default function ParticipationPage() {
-  const { isAdmin, isStaff } = useAuth();
+  const { isAdmin, isStaff, user } = useAuth();
   const [records, setRecords] = useState<ParticipationRecord[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<ParticipationRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,10 +67,29 @@ export default function ParticipationPage() {
   const [selectedActivity, setSelectedActivity] = useState('');
   const [students, setStudents] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
+  const [teachers, setTeachers] = useState<any[]>([]);
+  
+  // Modal and form state
+  const [showModal, setShowModal] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<ParticipationRecord | null>(null);
+  const [formData, setFormData] = useState({
+    student_id: '',
+    teacher_id: '',
+    activity_id: '',
+    date: format(new Date(), 'yyyy-MM-dd'),
+    grade: 'A' as 'A' | 'B' | 'C' | 'D',
+    remarks: ''
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   useEffect(() => {
     fetchData();
   }, [dateFrom, dateTo]);
+
+  useEffect(() => {
+    fetchTeachers();
+  }, []);
 
   useEffect(() => {
     filterRecords();
@@ -87,6 +111,128 @@ export default function ParticipationPage() {
       console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchTeachers = async () => {
+    try {
+      const result = await db.getTeachers();
+      if (result.data) {
+        setTeachers(result.data);
+        
+        // If user is staff, set their teacher_id as default
+        if (isStaff && user && result.data.length > 0) {
+          const currentTeacher = result.data.find(t => t.user_id === user.id);
+          if (currentTeacher) {
+            setFormData(prev => ({ ...prev, teacher_id: currentTeacher.id }));
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching teachers:', error);
+    }
+  };
+
+  const openModal = (record?: ParticipationRecord) => {
+    if (record) {
+      setEditingRecord(record);
+      setFormData({
+        student_id: record.student_id,
+        teacher_id: record.teacher_id,
+        activity_id: record.activity_id,
+        date: format(new Date(record.date), 'yyyy-MM-dd'),
+        grade: record.grade,
+        remarks: record.remarks || ''
+      });
+    } else {
+      setEditingRecord(null);
+      setFormData({
+        student_id: '',
+        teacher_id: isStaff && user && teachers.length > 0 ? 
+          (teachers.find(t => t.user_id === user.id)?.id || '') : '',
+        activity_id: '',
+        date: format(new Date(), 'yyyy-MM-dd'),
+        grade: 'A',
+        remarks: ''
+      });
+    }
+    setShowModal(true);
+    setMessage(null);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingRecord(null);
+    setFormData({
+      student_id: '',
+      teacher_id: isStaff && user && teachers.length > 0 ? 
+        (teachers.find(t => t.user_id === user.id)?.id || '') : '',
+      activity_id: '',
+      date: format(new Date(), 'yyyy-MM-dd'),
+      grade: 'A',
+      remarks: ''
+    });
+    setMessage(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.student_id || !formData.teacher_id || !formData.activity_id || !formData.date) {
+      setMessage({ type: 'error', text: 'Please fill in all required fields.' });
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      setMessage(null);
+
+      if (editingRecord) {
+        const result = await db.updateParticipationRecord(editingRecord.id, formData);
+        if (result.error) {
+          throw new Error(result.error.message);
+        }
+        setMessage({ type: 'success', text: 'Participation record updated successfully!' });
+      } else {
+        const result = await db.createParticipationRecord(formData);
+        if (result.error) {
+          throw new Error(result.error.message);
+        }
+        setMessage({ type: 'success', text: 'Participation record created successfully!' });
+      }
+
+      // Refresh data
+      await fetchData();
+      
+      // Close modal after a brief delay
+      setTimeout(() => {
+        closeModal();
+      }, 1500);
+    } catch (error: any) {
+      console.error('Error saving participation record:', error);
+      setMessage({ type: 'error', text: error.message || 'Error saving record. Please try again.' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: string, studentName: string) => {
+    if (!window.confirm(`Are you sure you want to delete the participation record for ${studentName}? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const result = await db.deleteParticipationRecord(id);
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+
+      // Refresh data
+      await fetchData();
+      alert('Participation record deleted successfully!');
+    } catch (error: any) {
+      console.error('Error deleting participation record:', error);
+      alert(error.message || 'Error deleting record. Please try again.');
     }
   };
 
@@ -157,7 +303,7 @@ export default function ParticipationPage() {
     }
   };
 
-  const uniqueClasses = [...new Set(students.map(s => s.class))].sort();
+  const uniqueClasses = Array.from(new Set(students.map(s => s.class))).sort();
   const gradeStats = {
     A: filteredRecords.filter(r => r.grade === 'A').length,
     B: filteredRecords.filter(r => r.grade === 'B').length,
@@ -190,13 +336,24 @@ export default function ParticipationPage() {
           <h1 className="text-3xl font-bold text-gray-900">Participation Records</h1>
           <p className="text-gray-600">View and analyze student participation data</p>
         </div>
-        <button
-          onClick={handleExport}
-          className="btn-primary flex items-center space-x-2"
-        >
-          <Download className="h-4 w-4" />
-          <span>Export Records</span>
-        </button>
+        <div className="flex items-center space-x-3">
+          {(isAdmin || isStaff) && (
+            <button
+              onClick={() => openModal()}
+              className="btn-primary flex items-center space-x-2"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Add Record</span>
+            </button>
+          )}
+          <button
+            onClick={handleExport}
+            className="btn-secondary flex items-center space-x-2"
+          >
+            <Download className="h-4 w-4" />
+            <span>Export</span>
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -315,6 +472,7 @@ export default function ParticipationPage() {
                   <th>Grade</th>
                   <th>Teacher</th>
                   <th>Remarks</th>
+                  {(isAdmin || isStaff) && <th className="text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -359,6 +517,26 @@ export default function ParticipationPage() {
                       <td className="text-sm text-gray-600 max-w-32 truncate">
                         {record.remarks || '-'}
                       </td>
+                      {(isAdmin || isStaff) && (
+                        <td className="text-right">
+                          <div className="flex items-center justify-end space-x-2">
+                            <button
+                              onClick={() => openModal(record)}
+                              className="p-1 text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 rounded transition-colors"
+                              title="Edit record"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(record.id, record.student.user?.name || 'Unknown Student')}
+                              className="p-1 text-red-600 hover:text-red-900 hover:bg-red-50 rounded transition-colors"
+                              title="Delete record"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -412,6 +590,164 @@ export default function ParticipationPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">
+                {editingRecord ? 'Edit Participation Record' : 'Add New Participation Record'}
+              </h3>
+              <button
+                onClick={closeModal}
+                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              {message && (
+                <div className={`p-3 rounded-lg text-sm ${
+                  message.type === 'success' 
+                    ? 'bg-green-50 text-green-700 border border-green-200' 
+                    : 'bg-red-50 text-red-700 border border-red-200'
+                }`}>
+                  {message.text}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Student <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.student_id}
+                    onChange={(e) => setFormData({ ...formData, student_id: e.target.value })}
+                    className="form-select"
+                    required
+                  >
+                    <option value="">Select a student</option>
+                    {students.map((student) => (
+                      <option key={student.id} value={student.id}>
+                        {student.user?.name} - {student.class}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Teacher <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.teacher_id}
+                    onChange={(e) => setFormData({ ...formData, teacher_id: e.target.value })}
+                    className="form-select"
+                    required
+                    disabled={isStaff && !isAdmin}
+                  >
+                    <option value="">Select a teacher</option>
+                    {teachers.map((teacher) => (
+                      <option key={teacher.id} value={teacher.id}>
+                        {teacher.user?.name}
+                      </option>
+                    ))}
+                  </select>
+                  {isStaff && !isAdmin && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Staff members can only create records for themselves
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Activity <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.activity_id}
+                    onChange={(e) => setFormData({ ...formData, activity_id: e.target.value })}
+                    className="form-select"
+                    required
+                  >
+                    <option value="">Select an activity</option>
+                    {activities.map((activity) => (
+                      <option key={activity.id} value={activity.id}>
+                        {activity.code} - {activity.description.split(' - ')[0]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    className="form-input"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Grade <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.grade}
+                    onChange={(e) => setFormData({ ...formData, grade: e.target.value as 'A' | 'B' | 'C' | 'D' })}
+                    className="form-select"
+                    required
+                  >
+                    <option value="A">A - Did properly</option>
+                    <option value="B">B - Attended</option>
+                    <option value="C">C - Late</option>
+                    <option value="D">D - Unattended</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Remarks
+                  </label>
+                  <textarea
+                    value={formData.remarks}
+                    onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                    className="form-textarea"
+                    rows={3}
+                    placeholder="Optional remarks or notes..."
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="btn-secondary"
+                  disabled={submitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary flex items-center space-x-2"
+                  disabled={submitting}
+                >
+                  <Save className="h-4 w-4" />
+                  <span>{submitting ? 'Saving...' : (editingRecord ? 'Update' : 'Create')}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
         </div>
       </Layout>
     </RouteGuard>

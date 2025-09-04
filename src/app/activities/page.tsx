@@ -9,7 +9,10 @@ import {
   Users,
   Calendar,
   Search,
-  Filter
+  Filter,
+  Trash2,
+  Save,
+  X
 } from 'lucide-react';
 import { db } from '@/lib/supabase';
 import { format } from 'date-fns';
@@ -32,7 +35,14 @@ export default function ActivitiesPage() {
   const [filteredActivities, setFilteredActivities] = useState<Activity[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
+  const [formData, setFormData] = useState({
+    code: '',
+    description: '',
+    start_time: '',
+    end_time: ''
+  });
 
   useEffect(() => {
     fetchActivities();
@@ -114,6 +124,74 @@ export default function ActivitiesPage() {
     return 'Night';
   };
 
+  const openModal = (activity?: Activity) => {
+    if (activity) {
+      setEditingActivity(activity);
+      setFormData({
+        code: activity.code,
+        description: activity.description,
+        start_time: activity.start_time,
+        end_time: activity.end_time
+      });
+    } else {
+      setEditingActivity(null);
+      setFormData({
+        code: '',
+        description: '',
+        start_time: '',
+        end_time: ''
+      });
+    }
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingActivity(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      let result;
+      
+      if (editingActivity) {
+        result = await db.updateActivity(editingActivity.id, formData);
+      } else {
+        result = await db.createActivity(formData);
+      }
+
+      if (result?.error) {
+        throw result.error;
+      }
+
+      closeModal();
+      fetchActivities();
+      alert(`Activity ${editingActivity ? 'updated' : 'created'} successfully!`);
+    } catch (error: any) {
+      console.error('Error saving activity:', error);
+      alert(`Error ${editingActivity ? 'updating' : 'creating'} activity: ${error.message || 'Something went wrong'}`);
+    }
+  };
+
+  const handleDelete = async (id: string, code: string) => {
+    if (!confirm(`Are you sure you want to delete activity "${code}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const result = await db.deleteActivity(id);
+      if (result?.error) {
+        throw result.error;
+      }
+      fetchActivities();
+      alert('Activity deleted successfully!');
+    } catch (error: any) {
+      console.error('Error deleting activity:', error);
+      alert(`Error deleting activity: ${error.message || 'Something went wrong'}`);
+    }
+  };
+
   if (loading) {
     return (
       <RouteGuard>
@@ -141,7 +219,7 @@ export default function ActivitiesPage() {
         </div>
         {isAdmin && (
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={() => openModal()}
             className="btn-primary flex items-center space-x-2"
           >
             <Plus className="h-4 w-4" />
@@ -219,9 +297,20 @@ export default function ActivitiesPage() {
               </div>
 
               {isAdmin && (
-                <div className="flex-shrink-0">
-                  <button className="p-2 text-gray-400 hover:text-gray-600 rounded">
+                <div className="flex-shrink-0 flex items-center space-x-1">
+                  <button
+                    onClick={() => openModal(activity)}
+                    className="p-2 text-gray-400 hover:text-blue-600 rounded transition-colors"
+                    title="Edit Activity"
+                  >
                     <Edit className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(activity.id, activity.code)}
+                    className="p-2 text-gray-400 hover:text-red-600 rounded transition-colors"
+                    title="Delete Activity"
+                  >
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               )}
@@ -305,6 +394,95 @@ export default function ActivitiesPage() {
           </div>
         </div>
       </div>
+
+        {/* Add/Edit Activity Modal */}
+        {showModal && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+              <div className="mt-3">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-medium text-gray-900">
+                    {editingActivity ? 'Edit Activity' : 'Add New Activity'}
+                  </h3>
+                  <button
+                    onClick={closeModal}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="h-6 w-6" />
+                  </button>
+                </div>
+                <form onSubmit={handleSubmit}>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Code
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.code}
+                      onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                      className="form-input"
+                      required
+                      placeholder="e.g., FAJR, CLASS_1"
+                    />
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Description
+                    </label>
+                    <textarea
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      className="form-input min-h-[80px] resize-none"
+                      required
+                      placeholder="e.g., Fajr Prayer - Morning congregational prayer"
+                      rows={3}
+                    />
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Start Time
+                    </label>
+                    <input
+                      type="time"
+                      value={formData.start_time}
+                      onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
+                      className="form-input"
+                      required
+                    />
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      End Time
+                    </label>
+                    <input
+                      type="time"
+                      value={formData.end_time}
+                      onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
+                      className="form-input"
+                      required
+                    />
+                  </div>
+                  <div className="flex justify-end space-x-3 mt-6">
+                    <button
+                      type="button"
+                      onClick={closeModal}
+                      className="btn btn-secondary"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
+                    >
+                      <Save className="h-4 w-4 mr-2" />
+                      Save
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
         </div>
       </Layout>
     </RouteGuard>
