@@ -17,6 +17,8 @@ import {
 import { db } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
+import Layout from '@/components/Layout';
+import RouteGuard from '@/components/RouteGuard';
 
 interface StudentProgress {
   student: any;
@@ -160,40 +162,52 @@ export default function ProgressPage() {
 
   if (!isStudent) {
     return (
-      <div className="p-6">
-        <div className="text-center">
-          <User className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Student Access Only</h2>
-          <p className="text-gray-600">This page is only accessible to students to view their personal progress.</p>
-        </div>
-      </div>
+      <RouteGuard>
+        <Layout>
+          <div className="p-6">
+            <div className="text-center">
+              <User className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">Student Access Only</h2>
+              <p className="text-gray-600">This page is only accessible to students to view their personal progress.</p>
+            </div>
+          </div>
+        </Layout>
+      </RouteGuard>
     );
   }
 
   if (loading) {
     return (
-      <div className="p-6">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-gray-200 rounded w-1/3"></div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="h-32 bg-gray-200 rounded"></div>
-            ))}
+      <RouteGuard>
+        <Layout>
+          <div className="p-6">
+            <div className="animate-pulse space-y-6">
+              <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="h-32 bg-gray-200 rounded"></div>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        </Layout>
+      </RouteGuard>
     );
   }
 
   if (!progress) {
     return (
-      <div className="p-6">
-        <div className="text-center">
-          <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">No Progress Data</h2>
-          <p className="text-gray-600">Unable to load your progress data. Please contact your administrator.</p>
-        </div>
-      </div>
+      <RouteGuard>
+        <Layout>
+          <div className="p-6">
+            <div className="text-center">
+              <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">No Progress Data</h2>
+              <p className="text-gray-600">Unable to load your progress data. Please contact your administrator.</p>
+            </div>
+          </div>
+        </Layout>
+      </RouteGuard>
     );
   }
 
@@ -202,7 +216,9 @@ export default function ProgressPage() {
   const totalRecords = progress.stats.totalRecords || 0;
   
   return (
-    <div className="p-6 space-y-6">
+    <RouteGuard>
+      <Layout>
+        <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -524,6 +540,8 @@ export default function ProgressPage() {
           )}
         </div>
       )}
-    </div>
+        </div>
+      </Layout>
+    </RouteGuard>
   );
 }

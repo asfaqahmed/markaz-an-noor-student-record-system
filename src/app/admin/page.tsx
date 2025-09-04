@@ -15,6 +15,8 @@ import {
 import { db, supabase } from '@/lib/supabase';
 import { User, Student, Teacher, Activity } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
+import Layout from '@/components/Layout';
+import RouteGuard from '@/components/RouteGuard';
 
 type ManagementSection = 'users' | 'students' | 'teachers' | 'activities';
 
@@ -41,7 +43,7 @@ interface FormData {
   };
 }
 
-export default function AdminManagementPage() {
+export default function AdminPage() {
   const { isAdmin } = useAuth();
   const [activeSection, setActiveSection] = useState<ManagementSection>('users');
   const [searchQuery, setSearchQuery] = useState('');
@@ -66,7 +68,18 @@ export default function AdminManagementPage() {
   useEffect(() => {
     if (!isAdmin) return;
     fetchData();
+    // Always fetch users for form dropdowns
+    fetchUsers();
   }, [isAdmin, activeSection]);
+
+  const fetchUsers = async () => {
+    try {
+      const { data: usersData } = await db.getUsers();
+      setUsers(usersData || []);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -144,9 +157,10 @@ export default function AdminManagementPage() {
     } else {
       setEditingItem(null);
       // Reset form
+      const today = new Date().toISOString().split('T')[0];
       setFormData({
         users: { name: '', email: '', role: 'student' },
-        students: { user_id: '', class: '', joined_at: new Date().toISOString().split('T')[0] },
+        students: { user_id: '', class: '', joined_at: today },
         teachers: { user_id: '', assigned_class: '' },
         activities: { code: '', description: '', start_time: '', end_time: '' }
       });
@@ -184,23 +198,11 @@ export default function AdminManagementPage() {
         // Create new item
         switch (activeSection) {
           case 'users':
-            // For users, we need to create both auth user and database user
-            const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
-              email: formData.users.email,
-              password: 'password123', // Default password
-              email_confirm: true,
-              user_metadata: {
-                name: formData.users.name,
-                role: formData.users.role
-              }
-            });
-
-            if (authError) throw authError;
-
-            // Create database user record
+            // Create database user record directly
+            // Note: In production, you'll need proper auth user creation with service role key
             result = await db.createUser({
               ...formData.users,
-              id: authUser.user.id
+              id: crypto.randomUUID() // Generate a UUID for the user
             } as any);
             break;
           case 'students':
@@ -221,9 +223,17 @@ export default function AdminManagementPage() {
 
       closeModal();
       fetchData();
+      // Show success message
+      alert(`${editingItem ? 'Updated' : 'Created'} ${activeSection.slice(0, -1)} successfully!`);
     } catch (error: any) {
       console.error('Error saving:', error);
-      alert('Error: ' + (error.message || 'Something went wrong'));
+      let errorMessage = 'Something went wrong';
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.error?.message) {
+        errorMessage = error.error.message;
+      }
+      alert(`Error ${editingItem ? 'updating' : 'creating'} ${activeSection.slice(0, -1)}: ${errorMessage}`);
     }
   };
 
@@ -236,8 +246,7 @@ export default function AdminManagementPage() {
       let result;
       switch (activeSection) {
         case 'users':
-          // First delete from auth
-          await supabase.auth.admin.deleteUser(id);
+          // Delete from database only (auth deletion requires service role key)
           result = await db.deleteUser(id);
           break;
         case 'students':
@@ -256,9 +265,16 @@ export default function AdminManagementPage() {
       }
 
       fetchData();
+      alert(`${activeSection.slice(0, -1)} deleted successfully!`);
     } catch (error: any) {
       console.error('Error deleting:', error);
-      alert('Error: ' + (error.message || 'Something went wrong'));
+      let errorMessage = 'Something went wrong';
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.error?.message) {
+        errorMessage = error.error.message;
+      }
+      alert(`Error deleting ${activeSection.slice(0, -1)}: ${errorMessage}`);
     }
   };
 
@@ -851,7 +867,9 @@ export default function AdminManagementPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <RouteGuard>
+      <Layout>
+        <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -916,8 +934,10 @@ export default function AdminManagementPage() {
         {renderTable()}
       </div>
 
-      {/* Modal */}
-      {renderModal()}
-    </div>
+        {/* Modal */}
+        {renderModal()}
+        </div>
+      </Layout>
+    </RouteGuard>
   );
 }

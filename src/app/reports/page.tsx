@@ -17,6 +17,8 @@ import { db } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { format, subDays, subWeeks, subMonths } from 'date-fns';
 import { exportToCSV, exportToPDF, prepareParticipationDataForExport, prepareAlertsDataForExport, prepareLeavesDataForExport } from '@/utils/export';
+import Layout from '@/components/Layout';
+import RouteGuard from '@/components/RouteGuard';
 
 interface ReportData {
   participationRecords: any[];
@@ -189,29 +191,39 @@ export default function ReportsPage() {
 
   if (!isAdmin) {
     return (
-      <div className="p-6">
-        <div className="text-center">
-          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
-          <p className="text-gray-600">Only administrators can access reports.</p>
-        </div>
-      </div>
+      <RouteGuard>
+        <Layout>
+          <div className="p-6">
+            <div className="text-center">
+              <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
+              <p className="text-gray-600">Only administrators can access reports.</p>
+            </div>
+          </div>
+        </Layout>
+      </RouteGuard>
     );
   }
 
   if (loading) {
     return (
-      <div className="p-6">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-gray-200 rounded w-1/3"></div>
-          <div className="h-64 bg-gray-200 rounded"></div>
-        </div>
-      </div>
+      <RouteGuard>
+        <Layout>
+          <div className="p-6">
+            <div className="animate-pulse space-y-6">
+              <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+              <div className="h-64 bg-gray-200 rounded"></div>
+            </div>
+          </div>
+        </Layout>
+      </RouteGuard>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <RouteGuard>
+      <Layout>
+        <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -504,6 +516,8 @@ export default function ReportsPage() {
           </div>
         </div>
       </div>
-    </div>
+        </div>
+      </Layout>
+    </RouteGuard>
   );
 }

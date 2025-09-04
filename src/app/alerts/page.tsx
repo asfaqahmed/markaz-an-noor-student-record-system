@@ -18,6 +18,8 @@ import { db } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
 import { exportToPDF, prepareAlertsDataForExport } from '@/utils/export';
+import Layout from '@/components/Layout';
+import RouteGuard from '@/components/RouteGuard';
 
 interface Alert {
   id: string;
@@ -159,7 +161,7 @@ export default function AlertsPage() {
     }
   };
 
-  const uniqueClasses = [...new Set(students.map(s => s.class))].sort();
+  const uniqueClasses = Array.from(new Set(students.map(s => s.class))).sort();
   const statusStats = {
     open: filteredAlerts.filter(a => a.status === 'open').length,
     reviewing: filteredAlerts.filter(a => a.status === 'reviewing').length,
@@ -168,17 +170,23 @@ export default function AlertsPage() {
 
   if (loading) {
     return (
-      <div className="p-6">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-gray-200 rounded w-1/3"></div>
-          <div className="h-64 bg-gray-200 rounded"></div>
-        </div>
-      </div>
+      <RouteGuard>
+        <Layout>
+          <div className="p-6">
+            <div className="animate-pulse space-y-6">
+              <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+              <div className="h-64 bg-gray-200 rounded"></div>
+            </div>
+          </div>
+        </Layout>
+      </RouteGuard>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <RouteGuard>
+      <Layout>
+        <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -437,6 +445,8 @@ export default function AlertsPage() {
           </div>
         </div>
       </div>
-    </div>
+        </div>
+      </Layout>
+    </RouteGuard>
   );
 }

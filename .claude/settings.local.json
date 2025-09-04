@@ -10,7 +10,9 @@
       "Read(/D:\\GitHub\\markaz-an-noor-student-record-system\\supabase\\migrations/**)",
       "Read(/D:\\GitHub\\markaz-an-noor-student-record-system/**)",
       "Bash(node:*)",
-      "Read(/D:\\GitHub\\markaz-an-noor-student-record-system\\src\\lib/**)"
+      "Read(/D:\\GitHub\\markaz-an-noor-student-record-system\\src\\lib/**)",
+      "Read(/D:\\GitHub\\markaz-an-noor-student-record-system\\src\\app/**)",
+      "Read(/D:\\GitHub\\markaz-an-noor-student-record-system\\src\\app/**)"
     ],
     "deny": [],
     "ask": []

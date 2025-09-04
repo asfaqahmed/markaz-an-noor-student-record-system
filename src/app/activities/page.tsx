@@ -14,6 +14,8 @@ import {
 import { db } from '@/lib/supabase';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
+import Layout from '@/components/Layout';
+import RouteGuard from '@/components/RouteGuard';
 
 interface Activity {
   id: string;
@@ -114,17 +116,23 @@ export default function ActivitiesPage() {
 
   if (loading) {
     return (
-      <div className="p-6">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-gray-200 rounded w-1/3"></div>
-          <div className="h-64 bg-gray-200 rounded"></div>
-        </div>
-      </div>
+      <RouteGuard>
+        <Layout>
+          <div className="p-6">
+            <div className="animate-pulse space-y-6">
+              <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+              <div className="h-64 bg-gray-200 rounded"></div>
+            </div>
+          </div>
+        </Layout>
+      </RouteGuard>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <RouteGuard>
+      <Layout>
+        <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -297,6 +305,8 @@ export default function ActivitiesPage() {
           </div>
         </div>
       </div>
-    </div>
+        </div>
+      </Layout>
+    </RouteGuard>
   );
 }

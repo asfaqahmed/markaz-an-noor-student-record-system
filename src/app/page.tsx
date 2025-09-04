@@ -1,40 +1,34 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import Login from '@/components/Login';
-import Layout from '@/components/Layout';
-import AdminDashboard from '@/components/dashboards/AdminDashboard';
-import StaffDashboard from '@/components/dashboards/StaffDashboard';
-import StudentDashboard from '@/components/dashboards/StudentDashboard';
+import { getDefaultRouteForRole } from '@/lib/auth-utils';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import Login from '@/components/Login';
 
 export default function Home() {
   const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (loading) return;
+    
+    if (user) {
+      // Redirect authenticated users to their role-specific default route
+      const defaultRoute = getDefaultRouteForRole(user.role);
+      router.push(defaultRoute);
+    }
+  }, [user, loading, router]);
 
   if (loading) {
-    return <LoadingSpinner fullScreen text="Loading your dashboard..." />;
+    return <LoadingSpinner fullScreen text="Loading..." />;
   }
 
   if (!user) {
     return <Login />;
   }
 
-  const getDashboard = () => {
-    switch (user.role) {
-      case 'admin':
-        return <AdminDashboard />;
-      case 'staff':
-        return <StaffDashboard />;
-      case 'student':
-        return <StudentDashboard />;
-      default:
-        return <div>Invalid user role</div>;
-    }
-  };
-
-  return (
-    <Layout>
-      {getDashboard()}
-    </Layout>
-  );
+  // Show loading while redirect happens
+  return <LoadingSpinner fullScreen text="Redirecting to your dashboard..." />;
 }
