@@ -4,14 +4,15 @@ import { UserRole } from '@/types';
 
 // Role-based route mapping
 export const ROLE_ROUTES = {
-  admin: '/admin',
-  staff: '/students', // Staff typically manages students
+  admin: '/dashboard',
+  staff: '/dashboard', 
   student: '/progress' // Students view their progress
 } as const;
 
 // Route permissions
 export const ROUTE_PERMISSIONS = {
   '/': ['admin', 'staff', 'student'], // Home page accessible to all authenticated users
+  '/dashboard': ['admin', 'staff'], // Dashboard for admin and staff
   '/admin': ['admin'],
   '/students': ['admin', 'staff'],
   '/activities': ['admin', 'staff'],

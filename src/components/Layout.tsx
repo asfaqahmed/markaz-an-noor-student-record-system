@@ -29,7 +29,7 @@ export default function Layout({ children }: LayoutProps) {
   const pathname = usePathname();
 
   const navigation = [
-    { name: 'Dashboard', href: '/', icon: Home, roles: ['admin', 'staff', 'student'] },
+    { name: 'Dashboard', href: '/dashboard', icon: Home, roles: ['admin', 'staff', 'student'] },
     { name: 'Students', href: '/students', icon: Users, roles: ['admin', 'staff'] },
     { name: 'Activities', href: '/activities', icon: BookOpen, roles: ['admin', 'staff'] },
     { name: 'Participation', href: '/participation', icon: Calendar, roles: ['admin', 'staff'] },
