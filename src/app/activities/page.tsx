@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   BookOpen, 
   Plus, 
@@ -44,15 +44,7 @@ export default function ActivitiesPage() {
     end_time: ''
   });
 
-  useEffect(() => {
-    fetchActivities();
-  }, []);
-
-  useEffect(() => {
-    filterActivities();
-  }, [activities, searchQuery]);
-
-  const fetchActivities = async () => {
+  const fetchActivities = useCallback(async () => {
     try {
       const { data, error } = await db.getActivities();
       
@@ -70,9 +62,9 @@ export default function ActivitiesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const filterActivities = () => {
+  const filterActivities = useCallback(() => {
     let filtered = activities;
 
     if (searchQuery) {
@@ -83,7 +75,15 @@ export default function ActivitiesPage() {
     }
 
     setFilteredActivities(filtered);
-  };
+  }, [activities, searchQuery]);
+
+  useEffect(() => {
+    fetchActivities();
+  }, [fetchActivities]);
+
+  useEffect(() => {
+    filterActivities();
+  }, [filterActivities]);
 
   const formatTime = (timeString: string) => {
     try {

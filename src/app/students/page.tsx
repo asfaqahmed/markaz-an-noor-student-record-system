@@ -259,7 +259,7 @@ export default function StudentsPage() {
     }
   };
 
-  const uniqueClasses = [...new Set(students.map(s => s.class))].sort();
+  const uniqueClasses = Array.from(new Set(students.map(s => s.class))).sort();
 
   if (loading) {
     return (

@@ -4,6 +4,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import ClientOnly from '@/components/ClientOnly';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -21,11 +22,31 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              // Suppress hydration warnings from browser extensions
+              if (typeof window !== 'undefined') {
+                const originalError = console.error;
+                console.error = (...args) => {
+                  if (typeof args[0] === 'string' && args[0].includes('Hydration failed')) {
+                    return;
+                  }
+                  originalError(...args);
+                };
+              }
+            `,
+          }}
+        />
+      </head>
+      <body className={inter.className} suppressHydrationWarning={true}>
         <ErrorBoundary>
-          <AuthProvider>
-            {children}
-          </AuthProvider>
+          <ClientOnly>
+            <AuthProvider>
+              {children}
+            </AuthProvider>
+          </ClientOnly>
         </ErrorBoundary>
       </body>
     </html>

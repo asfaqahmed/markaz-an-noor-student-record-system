@@ -22,7 +22,16 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Uncaught error:', error, errorInfo);
+    try {
+      console.error('Uncaught error:', error, errorInfo);
+    } catch (e) {
+      // Fallback if console.error fails
+      try {
+        console.log('Error occurred:', error?.message || 'Unknown error');
+      } catch (e2) {
+        // Silent fallback
+      }
+    }
   }
 
   private handleRefresh = () => {

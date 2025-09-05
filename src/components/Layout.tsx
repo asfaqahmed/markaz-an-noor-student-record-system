@@ -15,7 +15,7 @@ import {
   Bell,
   Settings
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -28,7 +28,7 @@ export default function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
 
-  const navigation = [
+  const navigation = useMemo(() => [
     { name: 'Dashboard', href: '/dashboard', icon: Home, roles: ['admin', 'staff', 'student'] },
     { name: 'Students', href: '/students', icon: Users, roles: ['admin', 'staff'] },
     { name: 'Activities', href: '/activities', icon: BookOpen, roles: ['admin', 'staff'] },
@@ -37,10 +37,12 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Reports', href: '/reports', icon: FileText, roles: ['admin'] },
     { name: 'Admin Management', href: '/admin', icon: Settings, roles: ['admin'] },
     { name: 'My Progress', href: '/progress', icon: Bell, roles: ['student'] },
-  ];
+  ], []);
 
-  const filteredNavigation = navigation.filter(item => 
-    item.roles.includes(user?.role || '')
+  const filteredNavigation = useMemo(() => 
+    navigation.filter(item => 
+      item.roles.includes(user?.role || '')
+    ), [navigation, user?.role]
   );
 
   const handleSignOut = async () => {

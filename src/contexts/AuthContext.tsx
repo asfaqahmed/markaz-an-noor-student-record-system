@@ -39,6 +39,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<AppUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
     // Get initial session
@@ -50,6 +51,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(null);
         setUser(null);
         setLoading(false);
+        setInitialized(true);
         return;
       }
       
@@ -58,12 +60,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         fetchUserProfile(session.user);
       } else {
         setLoading(false);
+        setInitialized(true);
       }
     }).catch((error) => {
       console.error('Error getting session:', error);
       setSession(null);
       setUser(null);
       setLoading(false);
+      setInitialized(true);
     });
 
     // Listen for auth changes
@@ -72,9 +76,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (event === 'TOKEN_REFRESHED') {
         console.log('Token refreshed successfully');
+        // Don't change loading state for token refresh
+        return;
       }
       
-      if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESH_FAILED') {
+      if (event === 'SIGNED_OUT') {
         console.log('User signed out or token refresh failed');
         setSession(null);
         setUser(null);
@@ -82,17 +88,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
       
-      setSession(session);
-      if (session?.user) {
-        await fetchUserProfile(session.user);
-      } else {
-        setUser(null);
-        setLoading(false);
+      // Only update session and user for sign in events if not already initialized
+      if (event === 'SIGNED_IN' || !initialized) {
+        setSession(session);
+        if (session?.user) {
+          await fetchUserProfile(session.user);
+        } else {
+          setUser(null);
+          setLoading(false);
+        }
       }
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [initialized]);
 
   const fetchUserProfile = async (authUser: User) => {
     try {
@@ -100,6 +109,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('No email found for auth user');
         setUser(null);
         setLoading(false);
+        setInitialized(true);
         return;
       }
       
@@ -116,6 +126,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(null);
     } finally {
       setLoading(false);
+      setInitialized(true);
     }
   };
 

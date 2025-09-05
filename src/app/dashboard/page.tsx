@@ -110,11 +110,12 @@ export default function DashboardPage() {
       let topClass = '';
       let bestAverage = 0;
       Object.entries(classGrades).forEach(([className, grades]) => {
-        if (grades.length > 0) {
-          const classPoints = grades.reduce((sum, grade) => {
+        const gradeArray = grades as string[];
+        if (gradeArray.length > 0) {
+          const classPoints = gradeArray.reduce((sum, grade) => {
             return sum + (grade === 'A' ? 4 : grade === 'B' ? 3 : grade === 'C' ? 2 : 1);
           }, 0);
-          const classAverage = classPoints / grades.length;
+          const classAverage = classPoints / gradeArray.length;
           if (classAverage > bestAverage) {
             bestAverage = classAverage;
             topClass = className;

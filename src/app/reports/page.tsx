@@ -30,6 +30,7 @@ import { format, subDays, subWeeks, subMonths } from 'date-fns';
 import { exportToCSV, exportToPDF, prepareParticipationDataForExport, prepareAlertsDataForExport, prepareLeavesDataForExport } from '@/utils/export';
 import Layout from '@/components/Layout';
 import RouteGuard from '@/components/RouteGuard';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 interface ReportData {
   participationRecords: any[];
@@ -64,7 +65,7 @@ interface SavedReport {
   exportFormat: string;
 }
 
-export default function ReportsPage() {
+function ReportsPageContent() {
   const { isAdmin } = useAuth();
   const [reportData, setReportData] = useState<ReportData>({
     participationRecords: [],
@@ -165,16 +166,34 @@ export default function ReportsPage() {
         db.getTeachers()
       ]);
 
+      // Filter out records with null/undefined critical data
+      const validParticipationRecords = (participationResult.data || []).filter(record => 
+        record && record.student && record.teacher && record.activity
+      );
+      
+      const validAlerts = (alertsResult.data || []).filter(alert => 
+        alert && alert.student && alert.teacher
+      );
+
       setReportData({
-        participationRecords: participationResult.data || [],
-        alerts: alertsResult.data || [],
-        leaves: leavesResult.data?.filter(leave => new Date(leave.date) >= new Date(dateFrom)) || [],
+        participationRecords: validParticipationRecords,
+        alerts: validAlerts,
+        leaves: leavesResult.data?.filter(leave => leave && new Date(leave.date) >= new Date(dateFrom)) || [],
         students: studentsResult.data || [],
         activities: activitiesResult.data || [],
         teachers: teachersResult.data || []
       });
     } catch (error) {
       console.error('Error fetching report data:', error);
+      // Set empty data on error to prevent crashes
+      setReportData({
+        participationRecords: [],
+        alerts: [],
+        leaves: [],
+        students: [],
+        activities: [],
+        teachers: []
+      });
     } finally {
       setLoading(false);
     }
@@ -325,13 +344,13 @@ export default function ReportsPage() {
     }
   };
 
-  const exportReport = (format: 'pdf' | 'csv' | 'excel') => {
+  const exportReport = (exportFormat: 'pdf' | 'csv' | 'excel') => {
     if (!previewData) return;
 
     try {
       const filename = `${previewData.config.name.replace(/\s+/g, '_').toLowerCase()}_${format(new Date(), 'yyyy-MM-dd')}`;
       
-      switch (format) {
+      switch (exportFormat) {
         case 'csv':
           exportToCSV(previewData.data, filename);
           break;
@@ -522,8 +541,8 @@ export default function ReportsPage() {
       const teacherRecords = data.participationRecords.filter((r: any) => r.teacher_id === teacher.id);
       const teacherAlerts = data.alerts.filter((a: any) => a.teacher_id === teacher.id);
       
-      const uniqueStudents = [...new Set(teacherRecords.map((r: any) => r.student_id))];
-      const uniqueActivities = [...new Set(teacherRecords.map((r: any) => r.activity_id))];
+      const uniqueStudents = Array.from(new Set(teacherRecords.map((r: any) => r.student_id)));
+      const uniqueActivities = Array.from(new Set(teacherRecords.map((r: any) => r.activity_id)));
       
       return {
         'Teacher Name': teacher.user?.name || 'N/A',
@@ -634,7 +653,7 @@ export default function ReportsPage() {
       }
     }
     
-    const uniqueActivities = [...new Set(data.participationRecords.map((r: any) => r.activity_id))];
+    const uniqueActivities = Array.from(new Set(data.participationRecords.map((r: any) => r.activity_id)));
     insights.push(`${uniqueActivities.length} different activities covered in this period`);
     
     return insights;
@@ -689,7 +708,7 @@ export default function ReportsPage() {
 
   const generateClassInsights = (data: any): string[] => {
     const insights = [];
-    const classes = [...new Set(data.students.map((s: any) => s.class))];
+    const classes = Array.from(new Set(data.students.map((s: any) => s.class)));
     
     if (classes.length > 0) {
       insights.push(`Analysis covers ${classes.length} different classes`);
@@ -711,154 +730,182 @@ export default function ReportsPage() {
   };
 
   const prepareMonthlyParticipationReport = () => {
-    // Group by month and class
-    const monthlyData: { [key: string]: any } = {};
-    
-    reportData.participationRecords.forEach(record => {
-      const month = format(new Date(record.date), 'yyyy-MM');
-      const className = record.student?.class || 'Unknown';
-      const key = `${month}-${className}`;
+    try {
+      // Group by month and class
+      const monthlyData: { [key: string]: any } = {};
       
-      if (!monthlyData[key]) {
-        monthlyData[key] = {
-          month,
-          class: className,
-          totalRecords: 0,
-          gradeA: 0,
-          gradeB: 0,
-          gradeC: 0,
-          gradeD: 0,
-          uniqueStudents: new Set(),
-          activities: new Set()
+      reportData.participationRecords.forEach(record => {
+        if (!record || !record.date) return;
+        
+        const month = format(new Date(record.date), 'yyyy-MM');
+        const className = record.student?.class || 'Unknown';
+        const key = `${month}-${className}`;
+        
+        if (!monthlyData[key]) {
+          monthlyData[key] = {
+            month,
+            class: className,
+            totalRecords: 0,
+            gradeA: 0,
+            gradeB: 0,
+            gradeC: 0,
+            gradeD: 0,
+            uniqueStudents: new Set(),
+            activities: new Set()
+          };
+        }
+        
+        monthlyData[key].totalRecords++;
+        monthlyData[key][`grade${record.grade}`]++;
+        if (record.student_id) monthlyData[key].uniqueStudents.add(record.student_id);
+        if (record.activity_id) monthlyData[key].activities.add(record.activity_id);
+      });
+      
+      return Object.values(monthlyData).map((data: any) => {
+        const totalPoints = data.gradeA * 4 + data.gradeB * 3 + data.gradeC * 2 + data.gradeD * 1;
+        const avgGrade = data.totalRecords > 0 ? (totalPoints / data.totalRecords).toFixed(2) : '0.00';
+        const attendanceRate = data.totalRecords > 0 ? 
+          (((data.gradeA + data.gradeB + data.gradeC) / data.totalRecords) * 100).toFixed(1) : '0';
+        
+        return {
+          'Month': data.month,
+          'Class': data.class,
+          'Total Records': data.totalRecords,
+          'Grade A': data.gradeA,
+          'Grade B': data.gradeB,
+          'Grade C': data.gradeC,
+          'Grade D': data.gradeD,
+          'Average Grade': avgGrade,
+          'Students Participated': data.uniqueStudents.size,
+          'Activities Covered': data.activities.size,
+          'Attendance Rate (%)': attendanceRate
         };
-      }
-      
-      monthlyData[key].totalRecords++;
-      monthlyData[key][`grade${record.grade}`]++;
-      monthlyData[key].uniqueStudents.add(record.student_id);
-      monthlyData[key].activities.add(record.activity_id);
-    });
-    
-    return Object.values(monthlyData).map((data: any) => {
-      const totalPoints = data.gradeA * 4 + data.gradeB * 3 + data.gradeC * 2 + data.gradeD * 1;
-      const avgGrade = data.totalRecords > 0 ? (totalPoints / data.totalRecords).toFixed(2) : '0.00';
-      const attendanceRate = data.totalRecords > 0 ? 
-        (((data.gradeA + data.gradeB + data.gradeC) / data.totalRecords) * 100).toFixed(1) : '0';
-      
-      return {
-        'Month': data.month,
-        'Class': data.class,
-        'Total Records': data.totalRecords,
-        'Grade A': data.gradeA,
-        'Grade B': data.gradeB,
-        'Grade C': data.gradeC,
-        'Grade D': data.gradeD,
-        'Average Grade': avgGrade,
-        'Students Participated': data.uniqueStudents.size,
-        'Activities Covered': data.activities.size,
-        'Attendance Rate (%)': attendanceRate
-      };
-    });
+      });
+    } catch (error) {
+      console.error('Error preparing monthly participation report:', error);
+      return [];
+    }
   };
 
   const prepareIndividualParticipationReport = (studentId: string) => {
-    const student = reportData.students.find(s => s.id === studentId);
-    if (!student) return [];
-    
-    const studentRecords = reportData.participationRecords.filter(r => r.student_id === studentId);
-    
-    return studentRecords.map(record => {
-      const activity = reportData.activities.find(a => a.id === record.activity_id);
-      const teacher = reportData.teachers.find(t => t.id === record.teacher_id);
+    try {
+      const student = reportData.students.find(s => s && s.id === studentId);
+      if (!student) return [];
       
-      return {
-        'Student Name': student.user?.name || 'Unknown',
-        'Class': student.class,
-        'Date': format(new Date(record.date), 'yyyy-MM-dd'),
-        'Activity Code': activity?.code || 'Unknown',
-        'Activity Description': activity?.description || 'Unknown',
-        'Grade': record.grade,
-        'Teacher': teacher?.user?.name || 'Unknown',
-        'Remarks': record.remarks || 'N/A'
-      };
-    });
+      const studentRecords = reportData.participationRecords.filter(r => r && r.student_id === studentId);
+      
+      return studentRecords.map(record => {
+        if (!record) return null;
+        
+        const activity = reportData.activities.find(a => a && a.id === record.activity_id);
+        const teacher = reportData.teachers.find(t => t && t.id === record.teacher_id);
+        
+        return {
+          'Student Name': student.user?.name || 'Unknown',
+          'Class': student.class || 'Unknown',
+          'Date': record.date ? format(new Date(record.date), 'yyyy-MM-dd') : 'Unknown',
+          'Activity Code': activity?.code || 'Unknown',
+          'Activity Description': activity?.description || 'Unknown',
+          'Grade': record.grade || 'N/A',
+          'Teacher': teacher?.user?.name || 'Unknown',
+          'Remarks': record.remarks || 'N/A'
+        };
+      }).filter(record => record !== null);
+    } catch (error) {
+      console.error('Error preparing individual participation report:', error);
+      return [];
+    }
   };
 
   const prepareMonthlyAlertsReport = () => {
-    // Group by month and priority
-    const monthlyData: { [key: string]: any } = {};
-    
-    reportData.alerts.forEach(alert => {
-      const month = format(new Date(alert.created_at), 'yyyy-MM');
-      const className = alert.student?.class || 'Unknown';
-      const key = `${month}-${className}`;
+    try {
+      // Group by month and priority
+      const monthlyData: { [key: string]: any } = {};
       
-      if (!monthlyData[key]) {
-        monthlyData[key] = {
-          month,
-          class: className,
-          totalAlerts: 0,
-          urgent: 0,
-          high: 0,
-          medium: 0,
-          low: 0,
-          open: 0,
-          reviewing: 0,
-          resolved: 0,
-          uniqueStudents: new Set(),
-          teachers: new Set()
+      reportData.alerts.forEach(alert => {
+        if (!alert || !alert.created_at) return;
+        
+        const month = format(new Date(alert.created_at), 'yyyy-MM');
+        const className = alert.student?.class || 'Unknown';
+        const key = `${month}-${className}`;
+        
+        if (!monthlyData[key]) {
+          monthlyData[key] = {
+            month,
+            class: className,
+            totalAlerts: 0,
+            urgent: 0,
+            high: 0,
+            medium: 0,
+            low: 0,
+            open: 0,
+            reviewing: 0,
+            resolved: 0,
+            uniqueStudents: new Set(),
+            teachers: new Set()
+          };
+        }
+        
+        monthlyData[key].totalAlerts++;
+        if (alert.priority) monthlyData[key][alert.priority]++;
+        if (alert.status) monthlyData[key][alert.status]++;
+        if (alert.student_id) monthlyData[key].uniqueStudents.add(alert.student_id);
+        if (alert.teacher_id) monthlyData[key].teachers.add(alert.teacher_id);
+      });
+      
+      return Object.values(monthlyData).map((data: any) => {
+        const resolutionRate = data.totalAlerts > 0 ? 
+          ((data.resolved / data.totalAlerts) * 100).toFixed(1) : '0';
+        
+        return {
+          'Month': data.month,
+          'Class': data.class,
+          'Total Alerts': data.totalAlerts,
+          'Urgent': data.urgent,
+          'High': data.high,
+          'Medium': data.medium,
+          'Low': data.low,
+          'Open': data.open,
+          'Reviewing': data.reviewing,
+          'Resolved': data.resolved,
+          'Students with Alerts': data.uniqueStudents.size,
+          'Teachers Reporting': data.teachers.size,
+          'Resolution Rate (%)': resolutionRate
         };
-      }
-      
-      monthlyData[key].totalAlerts++;
-      monthlyData[key][alert.priority]++;
-      monthlyData[key][alert.status]++;
-      monthlyData[key].uniqueStudents.add(alert.student_id);
-      monthlyData[key].teachers.add(alert.teacher_id);
-    });
-    
-    return Object.values(monthlyData).map((data: any) => {
-      const resolutionRate = data.totalAlerts > 0 ? 
-        ((data.resolved / data.totalAlerts) * 100).toFixed(1) : '0';
-      
-      return {
-        'Month': data.month,
-        'Class': data.class,
-        'Total Alerts': data.totalAlerts,
-        'Urgent': data.urgent,
-        'High': data.high,
-        'Medium': data.medium,
-        'Low': data.low,
-        'Open': data.open,
-        'Reviewing': data.reviewing,
-        'Resolved': data.resolved,
-        'Students with Alerts': data.uniqueStudents.size,
-        'Teachers Reporting': data.teachers.size,
-        'Resolution Rate (%)': resolutionRate
-      };
-    });
+      });
+    } catch (error) {
+      console.error('Error preparing monthly alerts report:', error);
+      return [];
+    }
   };
 
   const prepareIndividualAlertsReport = (studentId: string) => {
-    const student = reportData.students.find(s => s.id === studentId);
-    if (!student) return [];
-    
-    const studentAlerts = reportData.alerts.filter(a => a.student_id === studentId);
-    
-    return studentAlerts.map(alert => {
-      const teacher = reportData.teachers.find(t => t.id === alert.teacher_id);
+    try {
+      const student = reportData.students.find(s => s && s.id === studentId);
+      if (!student) return [];
       
-      return {
-        'Student Name': student.user?.name || 'Unknown',
-        'Class': student.class,
-        'Date Created': format(new Date(alert.created_at), 'yyyy-MM-dd HH:mm'),
-        'Priority': alert.priority.toUpperCase(),
-        'Status': alert.status.toUpperCase(),
-        'Comment': alert.comment,
-        'Teacher': teacher?.user?.name || 'Unknown',
-        'Resolved Date': alert.resolved_at ? format(new Date(alert.resolved_at), 'yyyy-MM-dd HH:mm') : 'N/A'
-      };
-    });
+      const studentAlerts = reportData.alerts.filter(a => a && a.student_id === studentId);
+      
+      return studentAlerts.map(alert => {
+        if (!alert) return null;
+        
+        const teacher = reportData.teachers.find(t => t && t.id === alert.teacher_id);
+        
+        return {
+          'Student Name': student.user?.name || 'Unknown',
+          'Class': student.class || 'Unknown',
+          'Date Created': alert.created_at ? format(new Date(alert.created_at), 'yyyy-MM-dd HH:mm') : 'Unknown',
+          'Priority': alert.priority ? alert.priority.toUpperCase() : 'N/A',
+          'Status': alert.status ? alert.status.toUpperCase() : 'N/A',
+          'Comment': alert.comment || 'N/A',
+          'Teacher': teacher?.user?.name || 'Unknown',
+          'Resolved Date': alert.resolved_at ? format(new Date(alert.resolved_at), 'yyyy-MM-dd HH:mm') : 'N/A'
+        };
+      }).filter(alert => alert !== null);
+    } catch (error) {
+      console.error('Error preparing individual alerts report:', error);
+      return [];
+    }
   };
 
   const toggleSection = (sectionId: string) => {
@@ -869,36 +916,48 @@ export default function ReportsPage() {
   };
 
   const calculateStats = () => {
-    const filteredRecords = getFilteredData();
-    const uniqueStudents = [...new Set(filteredRecords.map(r => r.student_id))];
-    const uniqueActivities = [...new Set(filteredRecords.map(r => r.activity_id))];
-    
-    const gradeDistribution = {
-      A: filteredRecords.filter(r => r.grade === 'A').length,
-      B: filteredRecords.filter(r => r.grade === 'B').length,
-      C: filteredRecords.filter(r => r.grade === 'C').length,
-      D: filteredRecords.filter(r => r.grade === 'D').length,
-    };
+    try {
+      const filteredRecords = getFilteredData();
+      const uniqueStudents = Array.from(new Set(filteredRecords.filter(r => r && r.student_id).map(r => r.student_id)));
+      const uniqueActivities = Array.from(new Set(filteredRecords.filter(r => r && r.activity_id).map(r => r.activity_id)));
+      
+      const gradeDistribution = {
+        A: filteredRecords.filter(r => r && r.grade === 'A').length,
+        B: filteredRecords.filter(r => r && r.grade === 'B').length,
+        C: filteredRecords.filter(r => r && r.grade === 'C').length,
+        D: filteredRecords.filter(r => r && r.grade === 'D').length,
+      };
 
-    const attendanceRate = filteredRecords.length > 0 
-      ? Math.round(((gradeDistribution.A + gradeDistribution.B + gradeDistribution.C) / filteredRecords.length) * 100)
-      : 0;
+      const attendanceRate = filteredRecords.length > 0 
+        ? Math.round(((gradeDistribution.A + gradeDistribution.B + gradeDistribution.C) / filteredRecords.length) * 100)
+        : 0;
 
-    const averageGrade = filteredRecords.length > 0
-      ? (gradeDistribution.A * 4 + gradeDistribution.B * 3 + gradeDistribution.C * 2 + gradeDistribution.D * 1) / filteredRecords.length
-      : 0;
+      const averageGrade = filteredRecords.length > 0
+        ? (gradeDistribution.A * 4 + gradeDistribution.B * 3 + gradeDistribution.C * 2 + gradeDistribution.D * 1) / filteredRecords.length
+        : 0;
 
-    return {
-      totalRecords: filteredRecords.length,
-      uniqueStudents: uniqueStudents.length,
-      uniqueActivities: uniqueActivities.length,
-      gradeDistribution,
-      attendanceRate,
-      averageGrade: averageGrade.toFixed(2)
-    };
+      return {
+        totalRecords: filteredRecords.length,
+        uniqueStudents: uniqueStudents.length,
+        uniqueActivities: uniqueActivities.length,
+        gradeDistribution,
+        attendanceRate,
+        averageGrade: averageGrade.toFixed(2)
+      };
+    } catch (error) {
+      console.error('Error calculating stats:', error);
+      return {
+        totalRecords: 0,
+        uniqueStudents: 0,
+        uniqueActivities: 0,
+        gradeDistribution: { A: 0, B: 0, C: 0, D: 0 },
+        attendanceRate: 0,
+        averageGrade: '0.00'
+      };
+    }
   };
 
-  const uniqueClasses = [...new Set(reportData.students.map(s => s.class))].sort();
+  const uniqueClasses = Array.from(new Set(reportData.students.filter(s => s && s.class).map(s => s.class))).sort();
   const stats = calculateStats();
 
   // Initialize expanded sections on first load
@@ -1017,10 +1076,10 @@ export default function ReportsPage() {
               >
                 <option value="">Choose a student</option>
                 {reportData.students
-                  .filter(student => !selectedClass || student.class === selectedClass)
+                  .filter(student => student && student.id && (!selectedClass || student.class === selectedClass))
                   .map((student) => (
                     <option key={student.id} value={student.id}>
-                      {student.user?.name} ({student.class})
+                      {student.user?.name || 'Unknown Student'} ({student.class || 'Unknown Class'})
                     </option>
                   ))}
               </select>
@@ -1144,25 +1203,30 @@ export default function ReportsPage() {
         <div className="card">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Activity Coverage</h2>
           <div className="space-y-3">
-            {reportData.activities.slice(0, 5).map((activity) => {
-              const activityRecords = reportData.participationRecords.filter(r => r.activity_id === activity.id);
-              const coverage = reportData.students.length > 0 
-                ? Math.round((activityRecords.length / reportData.students.length) * 100)
-                : 0;
-              
-              return (
-                <div key={activity.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="font-medium text-sm">{activity.code}</p>
-                    <p className="text-xs text-gray-500">{activity.description.split(' - ')[0]}</p>
+            {reportData.activities
+              .filter(activity => activity && activity.id)
+              .slice(0, 5)
+              .map((activity) => {
+                const activityRecords = reportData.participationRecords.filter(r => r && r.activity_id === activity.id);
+                const coverage = reportData.students.length > 0 
+                  ? Math.round((activityRecords.length / reportData.students.length) * 100)
+                  : 0;
+                
+                return (
+                  <div key={activity.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="font-medium text-sm">{activity.code || 'Unknown Activity'}</p>
+                      <p className="text-xs text-gray-500">
+                        {activity.description ? activity.description.split(' - ')[0] : 'No Description'}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium">{activityRecords.length} records</p>
+                      <p className="text-xs text-gray-500">{coverage}% coverage</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium">{activityRecords.length} records</p>
-                    <p className="text-xs text-gray-500">{coverage}% coverage</p>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
           </div>
         </div>
 
@@ -1328,7 +1392,7 @@ export default function ReportsPage() {
             <span className="font-medium">Period:</span> {selectedPeriod === 'day' ? 'Today' : selectedPeriod === 'week' ? 'Last Week' : selectedPeriod === 'month' ? 'Last Month' : selectedPeriod === 'quarter' ? 'Last Quarter' : 'Last Year'} |{' '}
             <span className="font-medium">Class:</span> {selectedClass || 'All Classes'}
             {selectedStudent && reportSubType === 'individual' && (
-              <> | <span className="font-medium">Student:</span> {reportData.students.find(s => s.id === selectedStudent)?.user?.name || 'Unknown'}</>
+              <> | <span className="font-medium">Student:</span> {reportData.students.find(s => s && s.id === selectedStudent)?.user?.name || 'Unknown'}</>
             )}
           </div>
         </div>
@@ -1336,5 +1400,13 @@ export default function ReportsPage() {
         </div>
       </Layout>
     </RouteGuard>
+  );
+}
+
+export default function ReportsPage() {
+  return (
+    <ErrorBoundary>
+      <ReportsPageContent />
+    </ErrorBoundary>
   );
 }

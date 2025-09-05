@@ -10,7 +10,7 @@ export const ROLE_ROUTES = {
 } as const;
 
 // Route permissions
-export const ROUTE_PERMISSIONS = {
+export const ROUTE_PERMISSIONS: Record<string, UserRole[]> = {
   '/': ['admin', 'staff', 'student'], // Home page accessible to all authenticated users
   '/dashboard': ['admin', 'staff'], // Dashboard for admin and staff
   '/admin': ['admin'],
@@ -20,7 +20,7 @@ export const ROUTE_PERMISSIONS = {
   '/alerts': ['admin', 'staff'],
   '/reports': ['admin'],
   '/progress': ['student']
-} as const;
+};
 
 export function getDefaultRouteForRole(role: UserRole): string {
   return ROLE_ROUTES[role] || '/';
@@ -29,7 +29,7 @@ export function getDefaultRouteForRole(role: UserRole): string {
 export function canAccessRoute(route: string, userRole: UserRole | undefined): boolean {
   if (!userRole) return false;
   
-  const permissions = ROUTE_PERMISSIONS[route as keyof typeof ROUTE_PERMISSIONS];
+  const permissions = ROUTE_PERMISSIONS[route];
   if (!permissions) return false;
   
   return permissions.includes(userRole);

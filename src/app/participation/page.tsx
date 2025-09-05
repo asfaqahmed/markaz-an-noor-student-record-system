@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   Calendar, 
   Users, 
@@ -83,19 +83,7 @@ export default function ParticipationPage() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
-  useEffect(() => {
-    fetchData();
-  }, [dateFrom, dateTo]);
-
-  useEffect(() => {
-    fetchTeachers();
-  }, []);
-
-  useEffect(() => {
-    filterRecords();
-  }, [records, selectedClass, selectedGrade, selectedActivity]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const [recordsResult, studentsResult, activitiesResult] = await Promise.all([
@@ -112,9 +100,9 @@ export default function ParticipationPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [dateFrom, dateTo]);
 
-  const fetchTeachers = async () => {
+  const fetchTeachers = useCallback(async () => {
     try {
       const result = await db.getTeachers();
       if (result.data) {
@@ -131,7 +119,7 @@ export default function ParticipationPage() {
     } catch (error) {
       console.error('Error fetching teachers:', error);
     }
-  };
+  }, [isStaff, user]);
 
   const openModal = (record?: ParticipationRecord) => {
     if (record) {
@@ -236,7 +224,7 @@ export default function ParticipationPage() {
     }
   };
 
-  const filterRecords = () => {
+  const filterRecords = useCallback(() => {
     let filtered = records;
 
     if (selectedClass) {
@@ -252,7 +240,19 @@ export default function ParticipationPage() {
     }
 
     setFilteredRecords(filtered);
-  };
+  }, [records, selectedClass, selectedGrade, selectedActivity]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    fetchTeachers();
+  }, [fetchTeachers]);
+
+  useEffect(() => {
+    filterRecords();
+  }, [filterRecords]);
 
   const handleExport = async () => {
     if (filteredRecords.length === 0) {
@@ -571,7 +571,7 @@ export default function ParticipationPage() {
             <div>
               <p className="text-sm font-medium text-blue-600">Unique Students</p>
               <p className="text-2xl font-bold text-blue-900">
-                {[...new Set(filteredRecords.map(r => r.student_id))].length}
+                {Array.from(new Set(filteredRecords.map(r => r.student_id))).length}
               </p>
             </div>
             <Users className="h-8 w-8 text-blue-600" />
@@ -583,7 +583,7 @@ export default function ParticipationPage() {
             <div>
               <p className="text-sm font-medium text-green-600">Activities Covered</p>
               <p className="text-2xl font-bold text-green-900">
-                {[...new Set(filteredRecords.map(r => r.activity_id))].length}
+                {Array.from(new Set(filteredRecords.map(r => r.activity_id))).length}
               </p>
             </div>
             <BookOpen className="h-8 w-8 text-green-600" />

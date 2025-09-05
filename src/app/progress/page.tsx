@@ -315,9 +315,9 @@ export default function ProgressPage() {
                       <span className="text-sm text-gray-600">{day.records} activities</span>
                       <div className="flex space-x-1">
                         {Object.entries(day.grades).map(([grade, count]) => (
-                          count > 0 && (
+                          (count as number) > 0 && (
                             <span key={grade} className={`px-2 py-1 rounded text-xs font-medium ${getGradeColor(grade)}`}>
-                              {grade}: {count}
+                              {grade}: {count as number}
                             </span>
                           )
                         ))}
@@ -345,7 +345,7 @@ export default function ProgressPage() {
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Grade Distribution</h2>
             <div className="space-y-4">
               {Object.entries(progress.stats.gradeDistribution).map(([grade, count]) => {
-                const percentage = totalRecords > 0 ? Math.round((count / totalRecords) * 100) : 0;
+                const percentage = totalRecords > 0 ? Math.round(((count as number) / totalRecords) * 100) : 0;
                 const IconComponent = getGradeIcon(grade);
                 
                 return (
@@ -359,7 +359,7 @@ export default function ProgressPage() {
                           Grade {grade} - {grade === 'A' ? 'Did properly' : grade === 'B' ? 'Attended' : grade === 'C' ? 'Late' : 'Unattended'}
                         </span>
                         <span className="text-sm text-gray-600">
-                          {count} times ({percentage}%)
+                          {count as number} times ({percentage}%)
                         </span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
