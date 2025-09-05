@@ -1,9 +1,1 @@
-{
-  "/_not-found/page": "app/_not-found/page.js",
-  "/dashboard/page": "app/dashboard/page.js",
-  "/students/page": "app/students/page.js",
-  "/activities/page": "app/activities/page.js",
-  "/participation/page": "app/participation/page.js",
-  "/alerts/page": "app/alerts/page.js",
-  "/progress/page": "app/progress/page.js"
-}
+{}

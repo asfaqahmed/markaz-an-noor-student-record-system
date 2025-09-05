@@ -78,6 +78,8 @@ export default function ReportsPage() {
   const [selectedPeriod, setSelectedPeriod] = useState('week');
   const [selectedClass, setSelectedClass] = useState('');
   const [reportType, setReportType] = useState('participation');
+  const [reportSubType, setReportSubType] = useState('monthly'); // 'monthly' or 'individual'
+  const [selectedStudent, setSelectedStudent] = useState('');
   
   // Report Management State
   const [showReportModal, setShowReportModal] = useState(false);
@@ -358,16 +360,37 @@ export default function ReportsPage() {
       let filename = '';
       let title = '';
 
+      // Handle different report types and subtypes
       switch (reportType) {
         case 'participation':
-          data = prepareParticipationDataForExport(reportData.participationRecords);
-          filename = 'participation_report';
-          title = 'Participation Records Report';
+          if (reportSubType === 'monthly') {
+            data = prepareMonthlyParticipationReport();
+            filename = 'monthly_participation_report';
+            title = 'Monthly Participation Summary Report';
+          } else {
+            if (!selectedStudent) {
+              alert('Please select a student for individual report.');
+              return;
+            }
+            data = prepareIndividualParticipationReport(selectedStudent);
+            filename = `individual_participation_report_${selectedStudent}`;
+            title = 'Individual Student Participation Report';
+          }
           break;
         case 'alerts':
-          data = prepareAlertsDataForExport(reportData.alerts);
-          filename = 'alerts_report';
-          title = 'Student Alerts Report';
+          if (reportSubType === 'monthly') {
+            data = prepareMonthlyAlertsReport();
+            filename = 'monthly_alerts_report';
+            title = 'Monthly Student Alerts Report';
+          } else {
+            if (!selectedStudent) {
+              alert('Please select a student for individual report.');
+              return;
+            }
+            data = prepareIndividualAlertsReport(selectedStudent);
+            filename = `individual_alerts_report_${selectedStudent}`;
+            title = 'Individual Student Alerts Report';
+          }
           break;
         case 'leaves':
           data = prepareLeavesDataForExport(reportData.leaves);
@@ -687,6 +710,157 @@ export default function ReportsPage() {
     return insights;
   };
 
+  const prepareMonthlyParticipationReport = () => {
+    // Group by month and class
+    const monthlyData: { [key: string]: any } = {};
+    
+    reportData.participationRecords.forEach(record => {
+      const month = format(new Date(record.date), 'yyyy-MM');
+      const className = record.student?.class || 'Unknown';
+      const key = `${month}-${className}`;
+      
+      if (!monthlyData[key]) {
+        monthlyData[key] = {
+          month,
+          class: className,
+          totalRecords: 0,
+          gradeA: 0,
+          gradeB: 0,
+          gradeC: 0,
+          gradeD: 0,
+          uniqueStudents: new Set(),
+          activities: new Set()
+        };
+      }
+      
+      monthlyData[key].totalRecords++;
+      monthlyData[key][`grade${record.grade}`]++;
+      monthlyData[key].uniqueStudents.add(record.student_id);
+      monthlyData[key].activities.add(record.activity_id);
+    });
+    
+    return Object.values(monthlyData).map((data: any) => {
+      const totalPoints = data.gradeA * 4 + data.gradeB * 3 + data.gradeC * 2 + data.gradeD * 1;
+      const avgGrade = data.totalRecords > 0 ? (totalPoints / data.totalRecords).toFixed(2) : '0.00';
+      const attendanceRate = data.totalRecords > 0 ? 
+        (((data.gradeA + data.gradeB + data.gradeC) / data.totalRecords) * 100).toFixed(1) : '0';
+      
+      return {
+        'Month': data.month,
+        'Class': data.class,
+        'Total Records': data.totalRecords,
+        'Grade A': data.gradeA,
+        'Grade B': data.gradeB,
+        'Grade C': data.gradeC,
+        'Grade D': data.gradeD,
+        'Average Grade': avgGrade,
+        'Students Participated': data.uniqueStudents.size,
+        'Activities Covered': data.activities.size,
+        'Attendance Rate (%)': attendanceRate
+      };
+    });
+  };
+
+  const prepareIndividualParticipationReport = (studentId: string) => {
+    const student = reportData.students.find(s => s.id === studentId);
+    if (!student) return [];
+    
+    const studentRecords = reportData.participationRecords.filter(r => r.student_id === studentId);
+    
+    return studentRecords.map(record => {
+      const activity = reportData.activities.find(a => a.id === record.activity_id);
+      const teacher = reportData.teachers.find(t => t.id === record.teacher_id);
+      
+      return {
+        'Student Name': student.user?.name || 'Unknown',
+        'Class': student.class,
+        'Date': format(new Date(record.date), 'yyyy-MM-dd'),
+        'Activity Code': activity?.code || 'Unknown',
+        'Activity Description': activity?.description || 'Unknown',
+        'Grade': record.grade,
+        'Teacher': teacher?.user?.name || 'Unknown',
+        'Remarks': record.remarks || 'N/A'
+      };
+    });
+  };
+
+  const prepareMonthlyAlertsReport = () => {
+    // Group by month and priority
+    const monthlyData: { [key: string]: any } = {};
+    
+    reportData.alerts.forEach(alert => {
+      const month = format(new Date(alert.created_at), 'yyyy-MM');
+      const className = alert.student?.class || 'Unknown';
+      const key = `${month}-${className}`;
+      
+      if (!monthlyData[key]) {
+        monthlyData[key] = {
+          month,
+          class: className,
+          totalAlerts: 0,
+          urgent: 0,
+          high: 0,
+          medium: 0,
+          low: 0,
+          open: 0,
+          reviewing: 0,
+          resolved: 0,
+          uniqueStudents: new Set(),
+          teachers: new Set()
+        };
+      }
+      
+      monthlyData[key].totalAlerts++;
+      monthlyData[key][alert.priority]++;
+      monthlyData[key][alert.status]++;
+      monthlyData[key].uniqueStudents.add(alert.student_id);
+      monthlyData[key].teachers.add(alert.teacher_id);
+    });
+    
+    return Object.values(monthlyData).map((data: any) => {
+      const resolutionRate = data.totalAlerts > 0 ? 
+        ((data.resolved / data.totalAlerts) * 100).toFixed(1) : '0';
+      
+      return {
+        'Month': data.month,
+        'Class': data.class,
+        'Total Alerts': data.totalAlerts,
+        'Urgent': data.urgent,
+        'High': data.high,
+        'Medium': data.medium,
+        'Low': data.low,
+        'Open': data.open,
+        'Reviewing': data.reviewing,
+        'Resolved': data.resolved,
+        'Students with Alerts': data.uniqueStudents.size,
+        'Teachers Reporting': data.teachers.size,
+        'Resolution Rate (%)': resolutionRate
+      };
+    });
+  };
+
+  const prepareIndividualAlertsReport = (studentId: string) => {
+    const student = reportData.students.find(s => s.id === studentId);
+    if (!student) return [];
+    
+    const studentAlerts = reportData.alerts.filter(a => a.student_id === studentId);
+    
+    return studentAlerts.map(alert => {
+      const teacher = reportData.teachers.find(t => t.id === alert.teacher_id);
+      
+      return {
+        'Student Name': student.user?.name || 'Unknown',
+        'Class': student.class,
+        'Date Created': format(new Date(alert.created_at), 'yyyy-MM-dd HH:mm'),
+        'Priority': alert.priority.toUpperCase(),
+        'Status': alert.status.toUpperCase(),
+        'Comment': alert.comment,
+        'Teacher': teacher?.user?.name || 'Unknown',
+        'Resolved Date': alert.resolved_at ? format(new Date(alert.resolved_at), 'yyyy-MM-dd HH:mm') : 'N/A'
+      };
+    });
+  };
+
   const toggleSection = (sectionId: string) => {
     setExpandedSections(prev => ({
       ...prev,
@@ -799,12 +973,15 @@ export default function ReportsPage() {
       {/* Report Configuration */}
       <div className="card">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Report Configuration</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Report Type</label>
             <select
               value={reportType}
-              onChange={(e) => setReportType(e.target.value)}
+              onChange={(e) => {
+                setReportType(e.target.value);
+                setSelectedStudent(''); // Reset student selection when changing type
+              }}
               className="form-select"
             >
               <option value="participation">Participation Records</option>
@@ -812,6 +989,44 @@ export default function ReportsPage() {
               <option value="leaves">Leave Records</option>
             </select>
           </div>
+          
+          {(reportType === 'participation' || reportType === 'alerts') && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Report Format</label>
+              <select
+                value={reportSubType}
+                onChange={(e) => {
+                  setReportSubType(e.target.value);
+                  setSelectedStudent(''); // Reset student selection when changing format
+                }}
+                className="form-select"
+              >
+                <option value="monthly">Monthly Summary</option>
+                <option value="individual">Individual Student</option>
+              </select>
+            </div>
+          )}
+          
+          {reportSubType === 'individual' && (reportType === 'participation' || reportType === 'alerts') && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Select Student</label>
+              <select
+                value={selectedStudent}
+                onChange={(e) => setSelectedStudent(e.target.value)}
+                className="form-select"
+              >
+                <option value="">Choose a student</option>
+                {reportData.students
+                  .filter(student => !selectedClass || student.class === selectedClass)
+                  .map((student) => (
+                    <option key={student.id} value={student.id}>
+                      {student.user?.name} ({student.class})
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
+          
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Time Period</label>
             <select
@@ -826,6 +1041,7 @@ export default function ReportsPage() {
               <option value="year">Last Year</option>
             </select>
           </div>
+          
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Class Filter</label>
             <select
@@ -998,22 +1214,30 @@ export default function ReportsPage() {
 
       {/* Export Options */}
       <div className="card">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Export Options</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Export Options</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="p-4 border border-gray-200 rounded-lg">
-            <h3 className="font-medium mb-2">Participation Records</h3>
+            <h3 className="font-medium mb-2">Monthly Participation</h3>
             <p className="text-sm text-gray-600 mb-3">
-              Export detailed participation data with grades and timestamps.
+              Monthly summary of participation by class and grades.
             </p>
             <div className="space-x-2">
               <button 
-                onClick={() => { setReportType('participation'); handleGenerateReport('csv'); }}
+                onClick={() => { 
+                  setReportType('participation'); 
+                  setReportSubType('monthly'); 
+                  handleGenerateReport('csv'); 
+                }}
                 className="btn-secondary text-xs"
               >
                 CSV
               </button>
               <button 
-                onClick={() => { setReportType('participation'); handleGenerateReport('pdf'); }}
+                onClick={() => { 
+                  setReportType('participation'); 
+                  setReportSubType('monthly'); 
+                  handleGenerateReport('pdf'); 
+                }}
                 className="btn-secondary text-xs"
               >
                 PDF
@@ -1022,19 +1246,46 @@ export default function ReportsPage() {
           </div>
           
           <div className="p-4 border border-gray-200 rounded-lg">
-            <h3 className="font-medium mb-2">Student Alerts</h3>
+            <h3 className="font-medium mb-2">Individual Participation</h3>
             <p className="text-sm text-gray-600 mb-3">
-              Export all student alerts with priority levels and status.
+              Detailed records for a specific student.
             </p>
             <div className="space-x-2">
               <button 
-                onClick={() => { setReportType('alerts'); handleGenerateReport('csv'); }}
+                onClick={() => { 
+                  setReportType('participation'); 
+                  setReportSubType('individual'); 
+                }}
+                className="btn-secondary text-xs"
+                disabled={!selectedStudent}
+              >
+                {selectedStudent ? 'Generate' : 'Select Student'}
+              </button>
+            </div>
+          </div>
+          
+          <div className="p-4 border border-gray-200 rounded-lg">
+            <h3 className="font-medium mb-2">Monthly Alerts</h3>
+            <p className="text-sm text-gray-600 mb-3">
+              Monthly summary of alerts by priority and status.
+            </p>
+            <div className="space-x-2">
+              <button 
+                onClick={() => { 
+                  setReportType('alerts'); 
+                  setReportSubType('monthly'); 
+                  handleGenerateReport('csv'); 
+                }}
                 className="btn-secondary text-xs"
               >
                 CSV
               </button>
               <button 
-                onClick={() => { setReportType('alerts'); handleGenerateReport('pdf'); }}
+                onClick={() => { 
+                  setReportType('alerts'); 
+                  setReportSubType('monthly'); 
+                  handleGenerateReport('pdf'); 
+                }}
                 className="btn-secondary text-xs"
               >
                 PDF
@@ -1043,24 +1294,42 @@ export default function ReportsPage() {
           </div>
           
           <div className="p-4 border border-gray-200 rounded-lg">
-            <h3 className="font-medium mb-2">Leave Records</h3>
+            <h3 className="font-medium mb-2">Individual Alerts</h3>
             <p className="text-sm text-gray-600 mb-3">
-              Export student leave records with dates and reasons.
+              All alerts for a specific student with details.
             </p>
             <div className="space-x-2">
               <button 
-                onClick={() => { setReportType('leaves'); handleGenerateReport('csv'); }}
+                onClick={() => { 
+                  setReportType('alerts'); 
+                  setReportSubType('individual'); 
+                }}
                 className="btn-secondary text-xs"
+                disabled={!selectedStudent}
               >
-                CSV
-              </button>
-              <button 
-                onClick={() => { setReportType('leaves'); handleGenerateReport('pdf'); }}
-                className="btn-secondary text-xs"
-              >
-                PDF
+                {selectedStudent ? 'Generate' : 'Select Student'}
               </button>
             </div>
+          </div>
+        </div>
+        
+        <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center space-x-2 mb-2">
+            <Calendar className="h-5 w-5 text-blue-600" />
+            <h3 className="font-medium text-blue-900">Current Report Settings</h3>
+          </div>
+          <div className="text-sm text-blue-800">
+            <span className="font-medium">Type:</span> {reportType === 'participation' ? 'Participation Records' : reportType === 'alerts' ? 'Student Alerts' : 'Leave Records'} |{' '}
+            {(reportType === 'participation' || reportType === 'alerts') && (
+              <>
+                <span className="font-medium">Format:</span> {reportSubType === 'monthly' ? 'Monthly Summary' : 'Individual Student'} |{' '}
+              </>
+            )}
+            <span className="font-medium">Period:</span> {selectedPeriod === 'day' ? 'Today' : selectedPeriod === 'week' ? 'Last Week' : selectedPeriod === 'month' ? 'Last Month' : selectedPeriod === 'quarter' ? 'Last Quarter' : 'Last Year'} |{' '}
+            <span className="font-medium">Class:</span> {selectedClass || 'All Classes'}
+            {selectedStudent && reportSubType === 'individual' && (
+              <> | <span className="font-medium">Student:</span> {reportData.students.find(s => s.id === selectedStudent)?.user?.name || 'Unknown'}</>
+            )}
           </div>
         </div>
       </div>
